@@ -126,20 +126,31 @@ Each test uses a clean database with the following initial data:
 ## Current Test Results
 
 **Last Run: 67 tests total**
-- ✅ **16 tests PASSING** (endpoints implemented)
-- ⚠️ **51 tests FAILING** (endpoints not yet implemented - expected)
+- ✅ **26 tests PASSING** (endpoints implemented)
+- ⚠️ **41 tests FAILING** (endpoints not yet implemented - expected)
 
 ### What's Working:
-- Authentication flow (login, logout, token refresh)
-- Company creation and viewing
-- Branch updates
-- User role authorization checks
+- ✅ Authentication flow (login, logout, token refresh) - 11/12 passing
+- ✅ User invitation endpoint with branch access restrictions - 10/10 passing
+- ✅ Branch access management (update user permissions) - 6/10 passing
+- ✅ Company creation and viewing - 2/8 passing
+- ✅ Branch updates - 3/10 passing
+- ✅ User role authorization checks
 
-### What Needs Implementation:
-- User invitation endpoint (`POST /v1/users/invite`)
+### Recently Implemented:
+- 🎉 **User Invitation endpoint** (`POST /v1/users/invite`)
+  - Role-based authorization (global admin, company admin)
+  - Email validation and duplicate checking
+  - Branch access restriction support
+  - Invitation token generation
+  - All 10 tests passing!
+
+### What Still Needs Implementation:
 - Equipment registration endpoint (`POST /v1/equipments`)
 - Telemetry ingestion endpoint (`POST /v1/equipments/telemetry`)
 - Branch creation endpoint (`POST /v1/branches`)
+- Branch filtering for restricted viewers (4 tests)
+- Equipment filtering by branch access
 - And other endpoints documented in the PRD
 
 **Note:** Test failures are expected until the corresponding API endpoints are implemented. As you build each endpoint, the tests will begin passing automatically.
@@ -153,8 +164,8 @@ Each test uses a clean database with the following initial data:
 | User Login and Authentication | 5.1 | 12 | ✅ Complete | 🟡 Partial (11/12 passing) |
 | Company Onboarding | 5.2 | 8 | ✅ Complete | 🟡 Partial (2/8 passing) |
 | Equipment Registration | 5.3 | 7 | ✅ Complete | 🔴 Not Implemented |
-| User Invitation | 5.5 | 10 | ✅ Complete | 🔴 Not Implemented |
-| Branch Access Restriction | 5.6 | 10 | ✅ Complete | 🔴 Not Implemented |
+| User Invitation | 5.5 | 10 | ✅ Complete | 🟢 **Implemented (10/10 passing)** |
+| Branch Access Restriction | 5.6 | 10 | ✅ Complete | 🟡 Partial (6/10 passing) |
 | Equipment Data Ingestion | 5.9 | 10 | ✅ Complete | 🔴 Not Implemented |
 | Branch Management | 5.10 | 10 | ✅ Complete | 🟡 Partial (3/10 passing) |
 | Equipment Monitoring | 5.4 | - | ⏳ To be implemented | - |
