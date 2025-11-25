@@ -1,0 +1,935 @@
+{
+  "info": {
+    "name": "Polo Sanca Refrigeration Monitoring API",
+    "description": "API for monitoring and managing refrigeration equipment across multiple companies and branches.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.polosanca.com/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"secure_password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user and receive JWT token"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Invite User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"role\": \"company_viewer\",\n  \"company_id\": \"cmp_456\",\n  \"branch_access\": {\n    \"type\": \"restricted\",\n    \"branches\": [\"brn_001\", \"brn_002\"]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "invite"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"company_admin\",\n  \"branch_access\": {\n    \"type\": \"full\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:user_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", ":user_id"],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "usr_123"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:user_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", ":user_id"],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "usr_123"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/companies",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Restaurants\",\n  \"contact_email\": \"admin@acme.com\",\n  \"contact_phone\": \"+1234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/companies",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/companies/:company_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies", ":company_id"],
+              "variable": [
+                {
+                  "key": "company_id",
+                  "value": "cmp_456"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Restaurants LLC\",\n  \"contact_email\": \"contact@acme.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/companies/:company_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies", ":company_id"],
+              "variable": [
+                {
+                  "key": "company_id",
+                  "value": "cmp_456"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Branches",
+      "item": [
+        {
+          "name": "List Branches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches?company_id=cmp_456",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "cmp_456"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Branch",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"cmp_456\",\n  \"name\": \"Downtown Branch\",\n  \"address\": \"123 Main St, City, State 12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Branch",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Downtown Main Branch\",\n  \"address\": \"123 Main Street, City, State 12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/:branch_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", ":branch_id"],
+              "variable": [
+                {
+                  "key": "branch_id",
+                  "value": "brn_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Branch",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/:branch_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", ":branch_id"],
+              "variable": [
+                {
+                  "key": "branch_id",
+                  "value": "brn_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Equipment",
+      "item": [
+        {
+          "name": "List Equipment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments"],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "branch_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register Equipment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serial\": \"EQ-12345\",\n  \"type\": \"freezer\",\n  \"branch_id\": \"brn_001\",\n  \"manufacturer\": \"CoolTech\",\n  \"model\": \"CT-500\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/equipments",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Equipment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Equipment",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manufacturer\": \"CoolTech Pro\",\n  \"model\": \"CT-500X\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Equipment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Telemetry",
+      "item": [
+        {
+          "name": "Submit Telemetry Data",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serial\": \"EQ-12345\",\n  \"temperature\": 4.5,\n  \"pressure\": 120.3,\n  \"door\": 0,\n  \"heater\": 1,\n  \"compressor\": 1,\n  \"fan\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/equipments/telemetry",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", "telemetry"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Historical Telemetry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id/telemetry?start_date=2025-01-01T00:00:00Z&end_date=2025-01-31T23:59:59Z&interval=raw",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id", "telemetry"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01T00:00:00Z"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-01-31T23:59:59Z"
+                },
+                {
+                  "key": "interval",
+                  "value": "raw"
+                },
+                {
+                  "key": "fields",
+                  "value": "temperature,pressure",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Real-time Telemetry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/telemetry/realtime",
+              "host": ["{{baseUrl}}"],
+              "path": ["telemetry", "realtime"],
+              "query": [
+                {
+                  "key": "branch_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "equipment_ids",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "List Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts"],
+              "query": [
+                {
+                  "key": "equipment_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "branch_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Technician dispatched to location\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/alerts/:alert_id/acknowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts", ":alert_id", "acknowledge"],
+              "variable": [
+                {
+                  "key": "alert_id",
+                  "value": "alt_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alerts/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts", "statistics"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alert Rules",
+      "item": [
+        {
+          "name": "List Alert Rules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules"],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "company_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "rule_type",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alert Rule",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Freezer High Temperature Alert\",\n  \"description\": \"Alert when freezer exceeds safe temperature\",\n  \"rule_type\": \"temperature_high\",\n  \"threshold_value\": 8.0,\n  \"comparison_operator\": \">\",\n  \"duration_seconds\": 300,\n  \"severity\": \"critical\",\n  \"message_template\": \"Temperature exceeded {{threshold}}°C: Current {{value}}°C\",\n  \"scope\": \"company\",\n  \"scope_id\": \"cmp_456\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert Rule",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules/:rule_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules", ":rule_id"],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "rule_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Alert Rule",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"threshold_value\": 10.0,\n  \"is_active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules/:rule_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules", ":rule_id"],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "rule_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Alert Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules/:rule_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules", ":rule_id"],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "rule_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Equipment Alert Rules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id/alert-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id", "alert-rules"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert Rule Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alert-rules/:rule_id/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["alert-rules", ":rule_id", "statistics"],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "rule_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Maintenance",
+      "item": [
+        {
+          "name": "Get Maintenance Records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id/maintenance-records",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id", "maintenance-records"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Log Maintenance Activity",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"routine_inspection\",\n  \"description\": \"Monthly maintenance check\",\n  \"performed_by\": \"John Smith\",\n  \"notes\": \"All components functioning normally\",\n  \"next_maintenance_date\": \"2025-12-25\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/equipments/:equipment_id/maintenance-records",
+              "host": ["{{baseUrl}}"],
+              "path": ["equipments", ":equipment_id", "maintenance-records"],
+              "variable": [
+                {
+                  "key": "equipment_id",
+                  "value": "eqp_001"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1717 @@
+openapi: 3.0.3
+info:
+  title: Polo Sanca Refrigeration Monitoring API
+  description: |
+    API for monitoring and managing refrigeration equipment across multiple companies and branches.
+
+    ## Authentication
+    - **User Authentication**: JWT tokens via `Authorization: Bearer <token>` header
+    - **Equipment Authentication**: API keys via `X-API-Key: <key>` header
+
+    ## Versioning
+    - Current version: v1
+    - Version included in URL path
+    - Previous versions supported for 12 months after new release
+
+  version: 1.0.0
+  contact:
+    name: Polo Sanca API Support
+    email: api@polosanca.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.polosanca.com/v1
+    description: Production server
+  - url: https://api-staging.polosanca.com/v1
+    description: Staging server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management operations
+  - name: Companies
+    description: Company management (Global Admin only)
+  - name: Branches
+    description: Branch management
+  - name: Equipment
+    description: Equipment management and monitoring
+  - name: Telemetry
+    description: Equipment data ingestion and retrieval
+  - name: Alerts
+    description: Alert management and notifications
+  - name: Alert Rules
+    description: Alert rule configuration (Global Admin only)
+  - name: Maintenance
+    description: Maintenance tracking and history
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive JWT token
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: secure_password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIs...
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate current JWT token
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh authentication token
+      description: Get a new JWT token
+      operationId: refreshToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      description: Get list of users filtered by permissions (Company Admin or Global Admin)
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company_id
+          in: query
+          description: Filter by company (Global Admin only)
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter by role
+          schema:
+            type: string
+            enum: [global_admin, company_admin, company_viewer]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /users/invite:
+    post:
+      tags:
+        - Users
+      summary: Invite a new user
+      description: Send invitation to new user (Company Admin or Global Admin)
+      operationId: inviteUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+                - company_id
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [company_admin, company_viewer]
+                company_id:
+                  type: string
+                branch_access:
+                  $ref: '#/components/schemas/BranchAccess'
+      responses:
+        '201':
+          description: User invited successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user_id:
+                    type: string
+                  invitation_sent:
+                    type: boolean
+
+  /users/{user_id}:
+    patch:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user details or permissions
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [company_admin, company_viewer]
+                branch_access:
+                  $ref: '#/components/schemas/BranchAccess'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+    delete:
+      tags:
+        - Users
+      summary: Deactivate user
+      description: Deactivate or remove user
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deactivated successfully
+
+  /companies:
+    get:
+      tags:
+        - Companies
+      summary: List companies
+      description: Get list of all companies (Global Admin only)
+      operationId: listCompanies
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Company'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Companies
+      summary: Create company
+      description: Create a new company (Global Admin only)
+      operationId: createCompany
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                contact_email:
+                  type: string
+                  format: email
+                contact_phone:
+                  type: string
+      responses:
+        '201':
+          description: Company created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+  /companies/{company_id}:
+    get:
+      tags:
+        - Companies
+      summary: Get company details
+      operationId: getCompany
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+    patch:
+      tags:
+        - Companies
+      summary: Update company
+      operationId: updateCompany
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                contact_email:
+                  type: string
+                contact_phone:
+                  type: string
+      responses:
+        '200':
+          description: Company updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /branches:
+    get:
+      tags:
+        - Branches
+      summary: List branches
+      description: Get branches for a company
+      operationId: listBranches
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company_id
+          in: query
+          description: Company ID (required for Global Admin, automatic for Company users)
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  branches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Branch'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Branches
+      summary: Create branch
+      operationId: createBranch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - company_id
+                - name
+                - address
+              properties:
+                company_id:
+                  type: string
+                name:
+                  type: string
+                address:
+                  type: string
+      responses:
+        '201':
+          description: Branch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+
+  /branches/{branch_id}:
+    patch:
+      tags:
+        - Branches
+      summary: Update branch
+      operationId: updateBranch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: branch_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Branch updated successfully
+
+    delete:
+      tags:
+        - Branches
+      summary: Delete branch
+      operationId: deleteBranch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: branch_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Branch deleted successfully
+
+  /equipments:
+    get:
+      tags:
+        - Equipment
+      summary: List equipment
+      description: Get equipment filtered by user permissions
+      operationId: listEquipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company_id
+          in: query
+          description: Filter by company (Global Admin only)
+          schema:
+            type: string
+        - name: branch_id
+          in: query
+          description: Filter by branch
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [operational, warning, critical, offline]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Equipment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Equipment
+      summary: Register new equipment
+      operationId: createEquipment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - serial
+                - type
+                - branch_id
+              properties:
+                serial:
+                  type: string
+                type:
+                  type: string
+                  enum: [freezer, refrigerator, cold_room]
+                branch_id:
+                  type: string
+                manufacturer:
+                  type: string
+                model:
+                  type: string
+                api_key:
+                  type: string
+      responses:
+        '201':
+          description: Equipment registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+
+  /equipments/{equipment_id}:
+    get:
+      tags:
+        - Equipment
+      summary: Get equipment details
+      operationId: getEquipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+
+    patch:
+      tags:
+        - Equipment
+      summary: Update equipment
+      operationId: updateEquipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                manufacturer:
+                  type: string
+                model:
+                  type: string
+      responses:
+        '200':
+          description: Equipment updated successfully
+
+    delete:
+      tags:
+        - Equipment
+      summary: Deactivate equipment
+      operationId: deleteEquipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Equipment deactivated successfully
+
+  /equipments/telemetry:
+    post:
+      tags:
+        - Telemetry
+      summary: Submit equipment telemetry data
+      description: Equipment posts monitoring data via this endpoint
+      operationId: submitTelemetry
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryData'
+      responses:
+        '200':
+          description: Data received successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  record_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /equipments/{equipment_id}/telemetry:
+    get:
+      tags:
+        - Telemetry
+      summary: Get historical telemetry data
+      description: Retrieve historical monitoring data for equipment
+      operationId: getEquipmentTelemetry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: interval
+          in: query
+          description: Data aggregation interval
+          schema:
+            type: string
+            enum: [raw, 5min, 1hour, 1day]
+            default: raw
+        - name: fields
+          in: query
+          description: Comma-separated list of fields to include
+          schema:
+            type: string
+            example: temperature,pressure,door
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: Higher limit for telemetry data
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipment_id:
+                    type: string
+                  serial:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TelemetryDataPoint'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /telemetry/realtime:
+    get:
+      tags:
+        - Telemetry
+      summary: Get real-time data for all accessible equipment
+      operationId: getRealtimeTelemetry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: branch_id
+          in: query
+          schema:
+            type: string
+        - name: equipment_ids
+          in: query
+          description: Comma-separated list of equipment IDs
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RealtimeTelemetry'
+
+  /alerts:
+    get:
+      tags:
+        - Alerts
+      summary: List alerts
+      description: Get alerts filtered by user permissions
+      operationId: listAlerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: query
+          schema:
+            type: string
+        - name: branch_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, acknowledged, resolved]
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [warning, critical]
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /alerts/{alert_id}/acknowledge:
+    patch:
+      tags:
+        - Alerts
+      summary: Acknowledge an alert
+      operationId: acknowledgeAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Alert acknowledged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /alerts/statistics:
+    get:
+      tags:
+        - Alerts
+      summary: Get alert statistics
+      description: Get dashboard statistics for alerts
+      operationId: getAlertStatistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_active:
+                    type: integer
+                  by_severity:
+                    type: object
+                    properties:
+                      warning:
+                        type: integer
+                      critical:
+                        type: integer
+                  by_type:
+                    type: object
+                    additionalProperties:
+                      type: integer
+
+  /alert-rules:
+    get:
+      tags:
+        - Alert Rules
+      summary: List alert rules
+      description: Get all alert rules (Global Admin only)
+      operationId: listAlertRules
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [global, company, equipment]
+        - name: company_id
+          in: query
+          schema:
+            type: string
+        - name: equipment_id
+          in: query
+          schema:
+            type: string
+        - name: rule_type
+          in: query
+          schema:
+            type: string
+            enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_rules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertRule'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Alert Rules
+      summary: Create alert rule
+      description: Create a new alert rule (Global Admin only)
+      operationId: createAlertRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleCreate'
+      responses:
+        '201':
+          description: Alert rule created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  message:
+                    type: string
+
+  /alert-rules/{rule_id}:
+    get:
+      tags:
+        - Alert Rules
+      summary: Get alert rule details
+      operationId: getAlertRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRule'
+
+    patch:
+      tags:
+        - Alert Rules
+      summary: Update alert rule
+      operationId: updateAlertRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                threshold_value:
+                  type: number
+                is_active:
+                  type: boolean
+                duration_seconds:
+                  type: integer
+                severity:
+                  type: string
+                  enum: [warning, critical]
+      responses:
+        '200':
+          description: Alert rule updated successfully
+
+    delete:
+      tags:
+        - Alert Rules
+      summary: Delete alert rule
+      operationId: deleteAlertRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alert rule deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  affected_equipments:
+                    type: integer
+
+  /equipments/{equipment_id}/alert-rules:
+    get:
+      tags:
+        - Alert Rules
+      summary: Get equipment alert rules
+      description: Get all alert rules applicable to specific equipment
+      operationId: getEquipmentAlertRules
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipment_id:
+                    type: string
+                  applicable_rules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertRuleWithPriority'
+
+  /alert-rules/{rule_id}/statistics:
+    get:
+      tags:
+        - Alert Rules
+      summary: Get alert rule statistics
+      description: Get statistics for how often a rule has triggered
+      operationId: getAlertRuleStatistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rule_id:
+                    type: string
+                  total_triggers:
+                    type: integer
+                  triggers_last_30_days:
+                    type: integer
+                  affected_equipments:
+                    type: integer
+                  avg_triggers_per_equipment:
+                    type: number
+
+  /equipments/{equipment_id}/maintenance-records:
+    get:
+      tags:
+        - Maintenance
+      summary: Get maintenance history
+      description: Get maintenance records for equipment
+      operationId: getMaintenanceRecords
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equipment_id:
+                    type: string
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaintenanceRecord'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Maintenance
+      summary: Log maintenance activity
+      operationId: createMaintenanceRecord
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - description
+                - performed_by
+              properties:
+                type:
+                  type: string
+                  example: routine_inspection
+                description:
+                  type: string
+                performed_by:
+                  type: string
+                notes:
+                  type: string
+                next_maintenance_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Maintenance record created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceRecord'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login
+
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Equipment API key for telemetry submission
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [global_admin, company_admin, company_viewer]
+        company_id:
+          type: string
+        branch_access:
+          $ref: '#/components/schemas/BranchAccess'
+        status:
+          type: string
+          enum: [active, inactive, pending]
+        created_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+
+    BranchAccess:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [full, restricted]
+        branches:
+          type: array
+          items:
+            type: string
+          description: List of branch IDs (only for restricted type)
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        branches_count:
+          type: integer
+        equipment_count:
+          type: integer
+        contact_email:
+          type: string
+        contact_phone:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Branch:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        company_id:
+          type: string
+        equipment_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Equipment:
+      type: object
+      properties:
+        id:
+          type: string
+        serial:
+          type: string
+        type:
+          type: string
+          enum: [freezer, refrigerator, cold_room]
+        company_id:
+          type: string
+        branch_id:
+          type: string
+        branch_name:
+          type: string
+        status:
+          type: string
+          enum: [operational, warning, critical, offline]
+        current_data:
+          $ref: '#/components/schemas/CurrentData'
+        manufacturer:
+          type: string
+        model:
+          type: string
+        installed_at:
+          type: string
+          format: date-time
+
+    CurrentData:
+      type: object
+      properties:
+        temperature:
+          type: number
+          format: float
+        pressure:
+          type: number
+          format: float
+        door:
+          type: string
+          enum: [open, closed]
+        heater:
+          type: string
+          enum: [on, off]
+        compressor:
+          type: string
+          enum: [on, off]
+        fan:
+          type: string
+          enum: [on, off]
+        last_update:
+          type: string
+          format: date-time
+
+    TelemetryData:
+      type: object
+      required:
+        - serial
+        - temperature
+        - pressure
+        - door
+        - heater
+        - compressor
+        - fan
+      properties:
+        serial:
+          type: string
+          example: EQ-12345
+        temperature:
+          type: number
+          format: float
+          example: 4.5
+        pressure:
+          type: number
+          format: float
+          example: 120.3
+        door:
+          type: integer
+          enum: [0, 1]
+          description: 0=closed, 1=open
+        heater:
+          type: integer
+          enum: [0, 1]
+          description: 0=off, 1=on
+        compressor:
+          type: integer
+          enum: [0, 1]
+          description: 0=off, 1=on
+        fan:
+          type: integer
+          enum: [0, 1]
+          description: 0=off, 1=on
+
+    TelemetryDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        temperature:
+          type: number
+          format: float
+        pressure:
+          type: number
+          format: float
+        door:
+          type: integer
+        heater:
+          type: integer
+        compressor:
+          type: integer
+        fan:
+          type: integer
+
+    RealtimeTelemetry:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+        serial:
+          type: string
+        branch_id:
+          type: string
+        temperature:
+          type: number
+        pressure:
+          type: number
+        door:
+          type: string
+          enum: [open, closed]
+        heater:
+          type: string
+          enum: [on, off]
+        compressor:
+          type: string
+          enum: [on, off]
+        fan:
+          type: string
+          enum: [on, off]
+        status:
+          type: string
+          enum: [operational, warning, critical, offline]
+        last_update:
+          type: string
+          format: date-time
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+        equipment_id:
+          type: string
+        serial:
+          type: string
+        branch_id:
+          type: string
+        type:
+          type: string
+          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
+        severity:
+          type: string
+          enum: [warning, critical]
+        message:
+          type: string
+        status:
+          type: string
+          enum: [active, acknowledged, resolved]
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+        acknowledged_by:
+          type: string
+
+    AlertRule:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        rule_type:
+          type: string
+          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
+        threshold_value:
+          type: number
+        comparison_operator:
+          type: string
+          enum: ['>', '<', '=', '>=', '<=']
+        duration_seconds:
+          type: integer
+          description: Condition must persist for this duration before alerting
+        severity:
+          type: string
+          enum: [warning, critical]
+        message_template:
+          type: string
+        scope:
+          type: string
+          enum: [global, company, equipment]
+        scope_id:
+          type: string
+          description: Company ID or Equipment ID (null for global)
+        is_active:
+          type: boolean
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AlertRuleCreate:
+      type: object
+      required:
+        - name
+        - rule_type
+        - threshold_value
+        - comparison_operator
+        - severity
+        - scope
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        rule_type:
+          type: string
+          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
+        threshold_value:
+          type: number
+        comparison_operator:
+          type: string
+          enum: ['>', '<', '=', '>=', '<=']
+        duration_seconds:
+          type: integer
+          default: 300
+        severity:
+          type: string
+          enum: [warning, critical]
+        message_template:
+          type: string
+        scope:
+          type: string
+          enum: [global, company, equipment]
+        scope_id:
+          type: string
+        is_active:
+          type: boolean
+          default: true
+
+    AlertRuleWithPriority:
+      allOf:
+        - $ref: '#/components/schemas/AlertRule'
+        - type: object
+          properties:
+            priority:
+              type: integer
+              description: Rule priority (1=highest)
+
+    MaintenanceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        equipment_id:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        performed_by:
+          type: string
+        performed_at:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        next_maintenance_date:
+          type: string
+          format: date
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+        limit:
+          type: integer
+          description: Items per page
+        total:
+          type: integer
+          description: Total number of items
+        total_pages:
+          type: integer
+          description: Total number of pages
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - Authentication required or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Not Found - Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    UnprocessableEntity:
+      description: Unprocessable Entity - Validation errors
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    TooManyRequests:
+      description: Too Many Requests - Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
