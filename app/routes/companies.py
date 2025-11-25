@@ -2,136 +2,268 @@
 Companies Routes
 CRUD operations for companies
 """
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from flask import Blueprint, Response, jsonify, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql.selectable import Subquery
 
 from app import db
-from app.models import Company, User, UserRole
+from app.models import Branch, Company, CompanyStatus, Equipment, User, UserRole
+from app.schemas import CompanyCreateSchema, CompanyUpdatePayload, CompanyUpdateSchema, validate_request_schema
+from app.utils import clamp_pagination, record_audit_log
 
-companies_bp = Blueprint('companies', __name__)
+companies_bp = Blueprint("companies", __name__)
+_company_create_schema = CompanyCreateSchema()
+_company_update_schema = CompanyUpdateSchema()
 
 
-@companies_bp.route('', methods=['GET'])
+def _company_counts_subqueries() -> tuple[Subquery, Subquery]:
+    """Build grouped subqueries for branches_count and active equipment_count (prevents N+1)."""
+    branches_sq = (
+        db.session.query(
+            Branch.company_id.label("company_id"),
+            func.count(Branch.id).label("branches_count"),
+        )
+        .group_by(Branch.company_id)
+        .subquery()
+    )
+    equipments_sq = (
+        db.session.query(
+            Equipment.company_id.label("company_id"),
+            func.count(Equipment.id).label("equipment_count"),
+        )
+        .filter(Equipment.is_active.is_(True))
+        .group_by(Equipment.company_id)
+        .subquery()
+    )
+    return branches_sq, equipments_sq
+
+
+@companies_bp.route("", methods=["GET"])
 @jwt_required()
-def get_companies():
-    """Get all companies with pagination"""
+def get_companies() -> tuple[Response, int]:
+    """Get all companies with pagination and single-query aggregate counts."""
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-    # Only Global Admins can view all companies
     if user.role != UserRole.GLOBAL_ADMIN:
-        return jsonify({'error': 'Forbidden'}), 403
+        return jsonify({"error": "Forbidden"}), 403
 
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 20, type=int)
+    page, limit = clamp_pagination(
+        request.args.get("page", 1, type=int),
+        request.args.get("limit", 20, type=int),
+    )
+    status_filter = request.args.get("status")
 
-    companies = Company.query.paginate(
-        page=page,
-        per_page=limit,
-        error_out=False
+    branches_sq, equipments_sq = _company_counts_subqueries()
+    query = (
+        db.session.query(
+            Company,
+            func.coalesce(branches_sq.c.branches_count, 0).label("branches_count"),
+            func.coalesce(equipments_sq.c.equipment_count, 0).label("equipment_count"),
+        )
+        .outerjoin(branches_sq, Company.id == branches_sq.c.company_id)
+        .outerjoin(equipments_sq, Company.id == equipments_sq.c.company_id)
     )
 
-    return jsonify({
-        'companies': [c.to_dict() for c in companies.items],
-        'pagination': {
-            'page': page,
-            'limit': limit,
-            'total': companies.total,
-            'total_pages': companies.pages
+    if status_filter:
+        try:
+            query = query.filter(Company.status == CompanyStatus(status_filter))
+        except ValueError:
+            return jsonify({"error": "Invalid status filter"}), 400
+
+    query = query.order_by(Company.created_at.desc())
+    total = query.count()
+    items = query.offset((page - 1) * limit).limit(limit).all()
+    total_pages = (total + limit - 1) // limit if total else 0
+
+    return jsonify(
+        {
+            "companies": [
+                company.to_dict(branches_count=b_cnt, equipment_count=e_cnt) for company, b_cnt, e_cnt in items
+            ],
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": total_pages,
+            },
         }
-    }), 200
+    ), 200
 
 
-@companies_bp.route('/<company_id>', methods=['GET'])
+@companies_bp.route("/<company_id>", methods=["GET"])
 @jwt_required()
-def get_company(company_id):
-    """Get a specific company"""
+def get_company(company_id: str) -> tuple[Response, int]:
+    """Get a specific company with single-query aggregate counts."""
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-    company = Company.query.get(company_id)
-    if not company:
-        return jsonify({'error': 'Company not found'}), 404
+    branches_sq, equipments_sq = _company_counts_subqueries()
+    row = (
+        db.session.query(
+            Company,
+            func.coalesce(branches_sq.c.branches_count, 0).label("branches_count"),
+            func.coalesce(equipments_sq.c.equipment_count, 0).label("equipment_count"),
+        )
+        .outerjoin(branches_sq, Company.id == branches_sq.c.company_id)
+        .outerjoin(equipments_sq, Company.id == equipments_sq.c.company_id)
+        .filter(Company.id == company_id)
+        .first()
+    )
 
-    # Global Admin can view any company, others can only view their own
-    if user.role != UserRole.GLOBAL_ADMIN and str(user.company_id) != company_id:
-        return jsonify({'error': 'Forbidden'}), 403
+    if not row:
+        return jsonify({"error": "Company not found"}), 404
 
-    return jsonify(company.to_dict()), 200
+    company, b_cnt, e_cnt = row
+
+    if user.role != UserRole.GLOBAL_ADMIN and str(user.company_id) != str(company.id):
+        return jsonify({"error": "Forbidden"}), 403
+
+    return jsonify(company.to_dict(branches_count=b_cnt, equipment_count=e_cnt)), 200
 
 
-@companies_bp.route('', methods=['POST'])
+@companies_bp.route("", methods=["POST"])
 @jwt_required()
-def create_company():
-    """Create a new company (Global Admin only)"""
+def create_company() -> tuple[Response, int]:
+    """Create a new company (Global Admin only)."""
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     if user.role != UserRole.GLOBAL_ADMIN:
-        return jsonify({'error': 'Forbidden'}), 403
+        return jsonify({"error": "Forbidden"}), 403
 
-    data = request.get_json()
+    raw_data = request.get_json(silent=True)
+    data, val_err = validate_request_schema(_company_create_schema, raw_data)
+    if val_err or data is None:
+        return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    if not data or not data.get('name'):
-        return jsonify({'error': 'Company name is required'}), 400
+    name = data["name"]
+    if Company.query.filter_by(name=name).first():
+        return jsonify({"error": "A company with this name already exists"}), 400
 
     company = Company(
-        name=data['name'],
-        contact_email=data.get('contact_email'),
-        contact_phone=data.get('contact_phone')
+        name=name,
+        contact_email=data.get("contact_email"),
+        contact_phone=data.get("contact_phone"),
     )
 
-    db.session.add(company)
-    db.session.commit()
+    try:
+        db.session.add(company)
+        db.session.flush()
+        record_audit_log(
+            user_id=user.id,
+            action="create_company",
+            entity_type="company",
+            entity_id=company.id,
+            changes={"name": company.name},
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "A company with this name already exists"}), 400
 
-    return jsonify(company.to_dict()), 201
+    return jsonify(company.to_dict(branches_count=0, equipment_count=0)), 201
 
 
-@companies_bp.route('/<company_id>', methods=['PATCH'])
+def _apply_company_updates(company: Company, data: CompanyUpdatePayload) -> dict[str, object]:
+    """Apply validated partial update fields to a Company and return the audit diff."""
+    changes: dict[str, object] = {}
+    if "name" in data and data["name"] != company.name:
+        changes["name"] = {"old": company.name, "new": data["name"]}
+        company.name = data["name"]
+    if "contact_email" in data and data["contact_email"] != company.contact_email:
+        changes["contact_email"] = {"old": company.contact_email, "new": data["contact_email"]}
+        company.contact_email = data["contact_email"]
+    if "contact_phone" in data and data["contact_phone"] != company.contact_phone:
+        changes["contact_phone"] = {"old": company.contact_phone, "new": data["contact_phone"]}
+        company.contact_phone = data["contact_phone"]
+    if "status" in data:
+        new_status = CompanyStatus(data["status"])
+        if new_status != company.status:
+            changes["status"] = {"old": company.status.value, "new": new_status.value}
+            company.status = new_status
+    return changes
+
+
+@companies_bp.route("/<company_id>", methods=["PATCH"])
 @jwt_required()
-def update_company(company_id):
-    """Update a company (Global Admin only)"""
+def update_company(company_id: str) -> tuple[Response, int]:
+    """Update a company (Global Admin or own Company Admin; status changes Global Admin only)."""
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-    if user.role != UserRole.GLOBAL_ADMIN:
-        return jsonify({'error': 'Forbidden'}), 403
+    if user.role == UserRole.COMPANY_VIEWER:
+        return jsonify({"error": "Forbidden"}), 403
 
-    company = Company.query.get(company_id)
+    company = db.session.get(Company, company_id)
     if not company:
-        return jsonify({'error': 'Company not found'}), 404
+        return jsonify({"error": "Company not found"}), 404
 
-    data = request.get_json()
+    if user.role == UserRole.COMPANY_ADMIN and str(user.company_id) != str(company.id):
+        return jsonify({"error": "Forbidden"}), 403
 
-    if 'name' in data:
-        company.name = data['name']
-    if 'contact_email' in data:
-        company.contact_email = data['contact_email']
-    if 'contact_phone' in data:
-        company.contact_phone = data['contact_phone']
-    if 'status' in data:
-        company.status = data['status']
+    raw_data = request.get_json(silent=True)
+    if isinstance(raw_data, dict) and "status" in raw_data and user.role != UserRole.GLOBAL_ADMIN:
+        return jsonify({"error": "Only Global Administrators can change company status"}), 403
 
-    db.session.commit()
+    data, val_err = validate_request_schema(_company_update_schema, raw_data, allow_empty=True)
+    if val_err or data is None:
+        return jsonify({"error": val_err or "Invalid request payload"}), 400
+
+    changes = _apply_company_updates(company, data)
+
+    try:
+        record_audit_log(
+            user_id=user.id,
+            action="update_company",
+            entity_type="company",
+            entity_id=company.id,
+            changes=changes or None,
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "A company with this name already exists"}), 400
 
     return jsonify(company.to_dict()), 200
 
 
-@companies_bp.route('/<company_id>', methods=['DELETE'])
+@companies_bp.route("/<company_id>", methods=["DELETE"])
 @jwt_required()
-def delete_company(company_id):
-    """Delete a company (Global Admin only)"""
+def delete_company(company_id: str) -> tuple[Response, int]:
+    """Soft-deactivate a company (Global Admin only) — preserves all historical records."""
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     if user.role != UserRole.GLOBAL_ADMIN:
-        return jsonify({'error': 'Forbidden'}), 403
+        return jsonify({"error": "Forbidden"}), 403
 
-    company = Company.query.get(company_id)
+    company = db.session.get(Company, company_id)
     if not company:
-        return jsonify({'error': 'Company not found'}), 404
+        return jsonify({"error": "Company not found"}), 404
 
-    db.session.delete(company)
+    old_status = company.status.value
+    company.status = CompanyStatus.INACTIVE
+    record_audit_log(
+        user_id=user.id,
+        action="deactivate_company",
+        entity_type="company",
+        entity_id=company.id,
+        changes={"status": {"old": old_status, "new": CompanyStatus.INACTIVE.value}},
+    )
     db.session.commit()
 
-    return jsonify({'message': 'Company deleted'}), 200
+    return jsonify({"message": "Company deactivated", "status": company.status.value}), 200

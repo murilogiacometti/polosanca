@@ -53,6 +53,8 @@ instance/
 .coverage
 htmlcov/
 .tox/
+playwright-report/
+test-results/
 
 # Logs
 *.log

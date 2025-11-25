@@ -1,0 +1,156 @@
+name: CI — Quality, Security & Dependencies
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly Monday 09:00 UTC scan to catch newly disclosed CVEs
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Lint, Types, Audit & Tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: polosanca_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies & scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pip-audit pyrefly
+
+      - name: Ruff lint & security rules (Bandit S-rules)
+        run: ruff check app tests config.py run.py init_db.py celery_worker.py
+
+      - name: Mypy static type check
+        run: mypy app
+
+      - name: Pyrefly static type check
+        run: pyrefly check app
+
+      - name: Pip dependency vulnerability audit
+        run: pip-audit -r requirements.txt
+
+      - name: Run pytest with coverage
+        env:
+          FLASK_ENV: testing
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/polosanca_test
+          SECRET_KEY: ci-test-secret-key
+          JWT_SECRET_KEY: ci-test-jwt-secret-key
+        run: pytest --cov=app --cov-report=term-missing
+
+  frontend:
+    name: Frontend (ESLint, Strict TS, Build, Dead Code & Audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify generated OpenAPI TypeScript types are up to date
+        run: |
+          npm run generate:api-types
+          git diff --exit-code src/types/openapi.d.ts
+
+      - name: ESLint + Strict TypeScript check
+        run: npm run lint
+
+      - name: Production build (tsc -b && vite build)
+        run: npm run build
+
+      - name: Unused files, exports & dependencies (Knip)
+        run: npm run knip
+
+      - name: npm dependency vulnerability audit (high & critical)
+        run: npm audit --audit-level=high
+
+  security:
+    name: Security (Secrets, Trivy SCA & Semgrep SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secrets scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy filesystem vulnerability & misconfiguration scan
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Semgrep SAST (Custom Polo Sanca rules + Python/Flask + TS/React)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            .semgrep.yml
+            p/python
+            p/flask
+            p/typescript
+            p/react
+            p/owasp-top-ten
+
+  openapi:
+    name: OpenAPI Spec Lint (Spectral)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint openapi.yaml
+        run: npx --yes @stoplight/spectral-cli lint openapi.yaml --fail-severity=error

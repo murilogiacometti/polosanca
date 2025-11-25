@@ -19,133 +19,173 @@ Provide companies with a centralized platform to monitor the health and performa
 ### 2.1 Global Admin (Polo Sanca)
 
 **Capabilities:**
-- Add new companies to the system
-- Invite users to any company (as admins or viewers)
-- Add new global admins
-- View all companies and their equipment
-- Configure alert rules and thresholds for equipment
-- Assign alert rules to companies or individual equipment
-- Manage system-wide settings
-- Access company data across all tenants
+- Add, update, and deactivate companies in the system
+- Create, update, and delete branches across any company
+- Register, update, rotate API keys for, and deactivate equipment in any branch
+- Invite users to any company (as admins or viewers) or add new global admins
+- View all companies, branches, users, and equipment across all tenants
+- Create, edit, enable/disable, and delete generic alert rules across global, company, or equipment scopes
+- Acknowledge and resolve alerts, log manual temperature readings when equipment is offline, and manage maintenance records across any company
+- Export telemetry and alert history as CSV
+- View system-wide audit logs (`GET /v1/audit-logs` and Global Admin UI)
 
 ### 2.2 Company Admin
 
 **Capabilities:**
-- View all equipment within their company (across all branches)
-- Invite new users to their company
-- Assign user roles (admin or viewer) within their company
+- View and manage all branches within their company (create, edit, delete unassigned branches)
+- Register, update, rotate API keys for, and deactivate equipment within their company's branches
+- Invite new users to their company and resend pending invitations
+- Assign user roles (`company_admin` or `company_viewer`) within their company
 - Configure branch-level access restrictions for viewers
-- Manage company profile and settings
-- Remove users from their company
-- View monitoring data and alerts for their equipment
+- Deactivate or remove users from their company
+- Manage their own company profile
+- View monitoring data, export CSV reports, acknowledge/resolve alerts, log manual temperature readings during offline events, and log/edit maintenance records for their company's equipment
+- View applicable alert rules in read-only mode (global rules plus rules scoped to their company/equipment)
 
 **Restrictions:**
 - Cannot access other companies' data
-- Cannot create new companies
-- Cannot promote users to global admin
+- Cannot create or deactivate companies
+- Cannot promote users to `global_admin`
+- Cannot create, modify, or delete alert rules
+- Cannot view system-wide audit logs
 
 ### 2.3 Company Viewer
 
 **Capabilities:**
-- View equipment monitoring data for their company
-- View equipment status and alerts
-- Access monitoring dashboards and reports
+- View equipment monitoring data and maintenance history for accessible branches
+- View equipment status, applicable alert thresholds, and alerts
+- Access monitoring dashboards and export CSV telemetry/alert reports for accessible branches
+- Manage their own user profile name and password
 
 **Access Levels:**
 - **Full Access**: Can view all branches within their company
-- **Branch-Restricted**: Can only view one or more specific branches assigned by company admin
+- **Branch-Restricted**: Can only view one or more specific branches assigned by a Global Admin or Company Admin
 
 **Restrictions:**
-- Cannot invite or manage users
-- Cannot modify company settings
-- Cannot access other companies' data
-- If branch-restricted, cannot view data from branches outside their assigned scope
+- Read-only access to company resources (cannot manage branches, equipment, manual telemetry, maintenance records, or users)
+- Cannot acknowledge or resolve alerts
+- Cannot modify company settings or access other companies' data
+- If branch-restricted, cannot view or export data from branches outside their assigned scope
+
+### 2.4 RBAC Permission Matrix
+
+| Resource / Action | Global Admin | Company Admin | Company Viewer (Full) | Company Viewer (Restricted) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Companies**: List all / Create / Deactivate | Yes | No | No | No |
+| **Companies**: View / Edit own company profile | Yes (All) | Yes (Own) | Read-only (Own) | Read-only (Own) |
+| **Branches**: Create / Edit / Delete | Yes (All) | Yes (Own) | No | No |
+| **Branches**: View | Yes (All) | Yes (Own) | Yes (Own) | Assigned branches only |
+| **Users**: Invite / Resend / Edit role & branches / Deactivate | Yes (All + Global Admins) | Yes (Own company, non-global) | No | No |
+| **Users**: View company users | Yes (All) | Yes (Own) | No | No |
+| **Own Profile (`/auth/me`)**: View & update name / password | Yes | Yes | Yes | Yes |
+| **Equipment**: Register / Edit / Rotate API key / Deactivate | Yes (All) | Yes (Own) | No | No |
+| **Equipment & Telemetry**: View status, history & export CSV | Yes (All) | Yes (Own) | Yes (Own) | Assigned branches only |
+| **Manual Telemetry Entry**: Log offline temperature reading | Yes (All) | Yes (Own) | No | No |
+| **Alerts**: View alerts, statistics & export CSV | Yes (All) | Yes (Own) | Yes (Own) | Assigned branches only |
+| **Alerts**: Acknowledge / Manually resolve | Yes (All) | Yes (Own) | No | No |
+| **Alert Rules**: Create / Edit / Delete | Yes | No | No | No |
+| **Alert Rules**: View applicable rules | Yes (All) | Read-only (Global + Own) | Read-only (Equipment view) | Read-only (Assigned equipment) |
+| **Maintenance Records**: Create / Edit / Delete | Yes (All) | Yes (Own) | No | No |
+| **Maintenance Records**: View history | Yes (All) | Yes (Own) | Yes (Own) | Assigned branches only |
+| **Audit Logs**: View (`GET /v1/audit-logs` & UI) | Yes | No | No | No |
 
 ## 3. Core Entities
 
 ### 3.1 Company
-- Company name
-- Contact information
-- Number of branches
-- Total equipment count
-- Status (active/inactive)
-- Created date
+- Company name (unique)
+- Contact information (email, phone)
+- Number of branches (derived)
+- Total equipment count (derived)
+- Status (`active`, `inactive`)
+- Created / updated timestamps
 - Associated users
 
 ### 3.2 Branch
-- Branch name/identifier
+- Branch name/identifier (unique per company)
 - Physical address
 - Company association
-- Number of equipment units
+- Number of equipment units (derived)
 - Branch manager contact (optional)
 
 ### 3.3 Equipment
-- Equipment ID/serial number
-- Equipment type (freezer, refrigerator, cold room, etc.)
-- Branch location
-- Installation date
-- Manufacturer and model
-- Status (operational, warning, critical, offline)
-- Last maintenance date
-- Next scheduled maintenance
+- Equipment ID (UUID) and unique serial number
+- Equipment type (`freezer`, `refrigerator`, `cold_room`)
+- Company and Branch location (branch must belong to the same company via composite FK)
+- Installation date, manufacturer, and model
+- Active lifecycle flag (`is_active`, default `true` — deactivating via `DELETE /v1/equipments/{id}` sets `is_active = false`, rejecting new hardware telemetry with `403`, halting offline checks, and preserving 100% of historical telemetry, alerts, and maintenance records)
+- Operational status (`operational`, `warning`, `critical`, `offline` — recomputed deterministically across ingestion, alert evaluation, manual alert resolution, and heartbeat sweeps; defaults to `offline` after **10 minutes (`600s`)** of hardware silence even if no `equipment_offline` alert rule is configured)
+- Denormalized `current_data` JSONB snapshot (updated on hardware ingestion with PostgreSQL `fillfactor = 80` so 30s dashboard polling avoids hypertable joins)
+- Server-generated API key (stored as a **`SHA-256` hash** at rest; plaintext returned only once upon creation or rotation)
+- Last seen timestamp (`last_seen_at`, updated only by hardware telemetry)
+- Last maintenance date and next scheduled maintenance date (derived/synced from maintenance logbook)
 
 ### 3.4 User
 - Name
-- Email
-- Role (global admin, company admin, company viewer)
-- Company association (if applicable)
-- Branch access restrictions (for viewers only)
-  - Access type: Full or Branch-Restricted
-  - Assigned branches (if branch-restricted)
-- Status (active/inactive/pending)
-- Last login
+- Email (unique)
+- Role (`global_admin`, `company_admin`, `company_viewer`)
+- Company association (`null` for `global_admin`; required for company roles)
+- Branch access restrictions (applies to `company_viewer`; admins always have full company access):
+  - Access type: `full` or `restricted`
+  - Assigned branches (minimum 1 branch required when `restricted`)
+- Status (`active`, `inactive`, `pending`)
+- Invitation token & expiration (7-day TTL while `pending`)
+- Password reset token & expiration (1-hour TTL when requested)
+- Last login timestamp
 
 ### 3.5 Alert Rules
 
-Alert rules are configured by Global Admins to define when alerts should be triggered based on monitoring data.
+Alert rules are generic threshold/duration rules created and managed by Global Admins (and viewable read-only by Company Admins for their company/equipment). No rules are pre-seeded automatically; Global Admins configure thresholds and persistence durations based on real operational needs.
 
 **Alert Rule Properties:**
 - Rule ID
-- Rule name
-- Rule type: temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline
+- Rule name (unique) and optional description
+- Rule type: `temperature_high`, `temperature_low`, `pressure_high`, `pressure_low`, `door_open`, `equipment_offline`
 - Condition parameters:
-  - Threshold value (e.g., temperature > 8°C)
-  - Duration (e.g., condition must persist for 5 minutes)
-  - Comparison operator (>, <, =, ≥, ≤)
-- Severity: warning, critical
+  - Numeric threshold rules (`temperature_*`, `pressure_*`): require `threshold_value` (in °C or kPa), `comparison_operator` (`>`, `<`, `=`, `>=`, `<=`), and `duration_seconds`
+  - State / heartbeat rules (`door_open`, `equipment_offline`): `threshold_value` and `comparison_operator` are `null`; only `duration_seconds` is required (e.g., door open continuously for `300` seconds, or no hardware telemetry received for `duration_seconds`)
+- Severity: `warning`, `critical`
 - Alert message template
 - Created by (Global Admin)
-- Assignment scope: global, company-specific, or equipment-specific
-- Active status (enabled/disabled)
+- Assignment scope: `global` (`scope_id = null`), `company` (`scope_id = company_id`), or `equipment` (`scope_id = equipment_id`)
+- Active status (`is_active`: enabled/disabled)
 
-**Assignment:**
-- Global rules apply to all equipment by default
-- Company-specific rules override global rules for that company
-- Equipment-specific rules override both global and company rules
-- Multiple rules can be active simultaneously
+**Priority, Deduplication & Hysteresis Semantics:**
+- Priority order is **Equipment (`1`) > Company (`2`) > Global (`3`)**, evaluated **per `(rule_type, severity)` pair**:
+  - Example: An equipment-specific `(temperature_high, critical)` rule overrides company and global `(temperature_high, critical)` rules for that unit, while leaving a company `(temperature_high, warning)` rule and global `(door_open, warning)` rule active.
+- Transient spikes (such as brief door openings or defrost cycles) are handled generically via `duration_seconds` without custom hardware state machines.
+- **Database-Enforced Deduplication:** A PostgreSQL partial unique index on `alerts (equipment_id, alert_rule_id) WHERE status IN ('active', 'acknowledged')` guarantees at most one open alert per rule/equipment even under concurrent Celery workers, dispatching a **single email notification** to **active Company Admins + permitted active Company Viewers (respecting `UserBranchAccess`)** of the owning company.
+- **Auto-Resolution Hysteresis:** Open threshold/door alerts auto-resolve only after hardware readings remain within normal bounds continuously for **60 seconds** (preventing sensor-flapping email storms). Open `equipment_offline` alerts auto-resolve immediately upon receipt of a valid hardware telemetry point.
 
 ### 3.6 Monitoring Data (Equipment Telemetry)
 
-Equipment sends monitoring data via HTTP POST requests to the server with the following data points:
+Monitoring data comes primarily from hardware HTTP POST requests, supplemented by admin-logged manual temperature readings when hardware is offline.
 
-**Request Data:**
-- `serial` - Equipment serial number/identifier (links to Equipment entity)
-- `temperature` - Current temperature reading (in Celsius)
-- `pressure` - Current pressure reading
-- `door` - Door status (open/closed)
-- `heater` - Heater/resistor status (on/off)
-- `compressor` - Compressor status (on/off)
-- `fan` - Fan/ventilator status (on/off)
+**Hardware Request Data (Fixed 7-Metric Payload):**
+- `serial` - Equipment serial number (must match the authenticated `X-API-Key`'s equipment)
+- `temperature` - Current temperature reading in **Celsius (°C)**
+- `pressure` - Current gauge pressure reading in **kilopascals (kPa)**
+- `door` - Door status (`0` = closed, `1` = open)
+- `heater` - Heater/resistor status (`0` = off, `1` = on)
+- `compressor` - Compressor status (`0` = off, `1` = on)
+- `fan` - Fan/ventilator status (`0` = off, `1` = on)
 
-**Server-Generated Data:**
-- Timestamp (date and time) - Captured when server receives the data
-- Record ID - Unique identifier for each data point
+**Manual Entry Data (Admin-Only Fallback During Offline Events):**
+- `temperature` - Observed thermometer reading in **Celsius (°C)** (required)
+- `recorded_at` *(optional)* - Observed timestamp (defaults to server UTC time; component/pressure fields remain `null`)
+- `notes` *(optional)* - Operator/inspection note
 
-**Data Characteristics:**
-- Time-series data stored for historical analysis
-- Frequency: Configurable (e.g., every 5 minutes, 15 minutes, etc.)
-- Retention period: Configurable based on company needs
-- Used for real-time monitoring, alerts, and trend analysis
+**Stored & Server-Generated Fields:**
+- `id` (`record_id`) - Server-generated UUID (included in hypertable composite PK `(time, equipment_id, id)` to prevent sub-millisecond collisions)
+- `time` (`timestamp`) - Timezone-aware UTC receipt timestamp for hardware data (or `recorded_at` for manual entries)
+- `source` - `'device'` (hardware ingestion) or `'manual'` (admin-entered reading)
+- `recorded_by` - Nullable `user_id` (populated when `source = 'manual'`)
+- `notes` - Nullable text (for manual entries)
+
+**Data Characteristics & Export Guardrails:**
+- Hardware readings use `0`/`1` integers for component states in raw time-series payloads/tables; summary status objects (`current_data` / `realtime`) expose human-readable status strings (`"open"/"closed"`, `"on"/"off"`). Numeric `0.0` values must be preserved explicitly (`is not None`).
+- Manual entries (`source = 'manual'`) are included in historical charts and CSV exports for food-safety compliance, but **do not** update `equipment.last_seen_at`, `current_data`, or clear `offline` equipment status.
+- **CSV Streaming & Window Caps:** CSV exports stream rows via server-side cursors; `interval=raw` telemetry exports enforce a **90-day maximum window** per download (`400 Bad Request` if exceeded), while `1hour` and `1day` aggregate exports allow up to **2 years**.
+- Retention & compression: Raw data retained for 2 years in TimescaleDB (compressed after 7 days), with pre-computed hourly and daily continuous aggregates.
 
 ## 4. Key Features
 
@@ -221,36 +261,39 @@ Allow company admins to limit viewer access to specific branches, enabling granu
 ### 4.4 Equipment Monitoring
 
 **For All Authenticated Users:**
-- Dashboard showing equipment status overview
-- Real-time monitoring data display:
+- Dashboard showing equipment status overview (auto-refreshed every **30 seconds** via HTTP polling)
+- Near-real-time monitoring data display:
   - Temperature readings (°C)
-  - Pressure readings
+  - Pressure readings (kPa)
   - Door status (open/closed indicator)
   - Heater/resistor status (on/off indicator)
   - Compressor status (on/off indicator)
   - Fan/ventilator status (on/off indicator)
-- Equipment status indicators (operational, warning, critical, offline)
+- Equipment status indicators (`operational`, `warning`, `critical`, `offline`)
 - Alert notifications for equipment issues
-- Historical data and trends with time-series charts
-- Equipment location mapping (by branch)
-- Last update timestamp for each equipment
+- Historical data and trends with time-series charts (distinguishing hardware `'device'` readings from `'manual'` offline entries)
+- CSV export of historical telemetry (`GET /v1/equipments/{equipment_id}/telemetry/export`)
+- Equipment location grouping (by branch), last hardware update timestamp (`last_seen_at`), and `last_maintenance_date` / `next_maintenance_date`
+
+**For Global Admins and Company Admins (Offline Fallback):**
+- Manual temperature entry (`POST /v1/equipments/{equipment_id}/telemetry/manual`) when equipment is `offline`, recording observed temperature (°C), optional timestamp/notes, `source = 'manual'`, and `recorded_by = user_id` while keeping equipment status `offline` until hardware resumes reporting
 
 **Filtering and Views:**
 - Filter by branch (respects branch-level access restrictions)
 - Filter by equipment status
 - Filter by equipment type
 - Search by equipment ID or serial number
-- Date range selector for historical data
+- Date range selector for historical data and CSV exports
 
-**Note:** Branch-restricted viewers automatically see only equipment from their assigned branches.
+**Note:** Branch-restricted viewers automatically see and export only equipment data from their assigned branches.
 
 ### 4.5 Branch Management
 
-**For Company Admins:**
-- Add new branches
+**For Global Admins and Company Admins:**
+- Add new branches (Global Admins specify target company; Company Admins create within their own company)
 - Edit branch information
-- View equipment by branch
-- Assign equipment to branches
+- Delete branches (only after reassigning equipment and resolving any single-branch restricted viewers)
+- Register and assign equipment to branches
 
 **For All Company Users:**
 - View branch locations (filtered by branch access if restricted)
@@ -258,147 +301,150 @@ Allow company admins to limit viewer access to specific branches, enabling granu
 
 ### 4.6 Alerts and Notifications
 
-**Current Alert Types:**
-- Temperature threshold alerts (filtered by branch access for restricted viewers)
-- Pressure threshold alerts (filtered by branch access for restricted viewers)
-- Door open alerts (filtered by branch access for restricted viewers)
-- Equipment offline alerts (filtered by branch access for restricted viewers)
-- Maintenance due notifications (filtered by branch access for restricted viewers)
-- Critical status notifications (filtered by branch access for restricted viewers)
-- Configurable notification preferences (email, in-app)
+**v1 Alert Types & Delivery:**
+- Temperature threshold alerts (`temperature_high`, `temperature_low`)
+- Pressure threshold alerts (`pressure_high`, `pressure_low`)
+- Door open duration alerts (`door_open`)
+- Equipment offline heartbeat alerts (`equipment_offline`, evaluated by periodic 60s background check)
+- **Notification Delivery (Lean v1):**
+  - In-app dashboard alert feed and active alert counters (polled every 30 seconds)
+  - **Single email notification** dispatched asynchronously (with Celery retry/backoff) when a new alert transitions to `active`, sent to **active Company Admins + permitted active Company Viewers (filtered by `UserBranchAccess`)** of the owning company
+- **CSV Export:** Streamed CSV export of filtered alert history (`GET /v1/alerts/export`)
 
-**Future Enhancement (Phase 2):**
-- Smart anomaly detection alerts that identify unusual patterns automatically
-- Predictive failure warnings based on performance degradation trends
-- See Section 8.1 for detailed anomaly detection specifications
+**Future Enhancements (Phase 2+):**
+- Smart anomaly detection, configurable notification preferences, and critical alert escalations (see Section 8)
 
-**Note:** Branch-restricted viewers only receive alerts for equipment in their assigned branches.
+**Note:** Branch-restricted viewers only see, receive, and export alerts for equipment in their assigned branches.
 
-### 4.7 Alert Rule Configuration
+### 4.7 Alert Rule Configuration & Visibility
 
-**For Global Admins:**
+**For Global Admins (Full CRUD):**
 
 **Create Alert Rules:**
 - Define rule name and description
-- Select rule type (temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline)
-- Set threshold values and comparison operators
-- Configure duration/persistence requirements
-- Set severity level (warning, critical)
+- Select generic rule type (`temperature_high`, `temperature_low`, `pressure_high`, `pressure_low`, `door_open`, `equipment_offline`)
+- Set threshold values and comparison operators (required for numeric rules; `null` for `door_open` and `equipment_offline`)
+- Configure persistence duration (`duration_seconds`) — handles transient spikes such as brief door openings or defrost cycles without custom state machines
+- Set severity level (`warning`, `critical`)
 - Customize alert message template
-- Enable/disable rule
+- Enable/disable rule (no rules are pre-seeded automatically)
 
 **Assign Alert Rules:**
-- **Global assignment**: Apply rule to all equipment across all companies
-- **Company-specific**: Apply rule to all equipment in a specific company
-- **Equipment-specific**: Apply rule to individual equipment units
+- **Global assignment**: Apply rule to all equipment across all companies (`scope = global`, `scope_id = null`)
+- **Company-specific**: Apply rule to all equipment in a specific company (`scope = company`, `scope_id = company_id`)
+- **Equipment-specific**: Apply rule to an individual equipment unit (`scope = equipment`, `scope_id = equipment_id`)
 - View which rules are assigned to each scope
 
 **Manage Rules:**
 - List all alert rules with filtering
 - Edit existing rules
 - Enable/disable rules without deletion
-- Delete rules (with confirmation if actively assigned)
+- Delete rules (with confirmation showing affected equipment count)
 - View rule trigger history and statistics
 
-**Rule Priority:**
+**For Company Admins (Read-Only Visibility):**
+- View global rules and rules assigned to their company or its equipment (`GET /v1/alert-rules` and `GET /v1/equipments/{equipment_id}/alert-rules`)
+
+**Rule Priority (per `(rule_type, severity)` pair):**
 1. Equipment-specific rules (highest priority)
 2. Company-specific rules
 3. Global rules (lowest priority)
 
 **Use Cases:**
-- Set different temperature thresholds for freezers vs refrigerators
-- Configure stricter rules for specific high-value clients
-- Create custom rules for equipment with special requirements
-- Temporarily disable rules during maintenance windows
+- Configure tailored temperature/duration thresholds for specific equipment units
+- Set stricter company-wide rules for high-value clients
+- Allow Company Admins to inspect which thresholds apply to their equipment without modifying global policy
 
 ### 4.8 Maintenance Tracking
 
-- Log maintenance activities
-- Schedule maintenance
-- Maintenance history per equipment
-- Maintenance due dashboard
+- Simple per-equipment maintenance logbook: log, view, edit, and delete maintenance records (write access restricted to Global Admins and owning Company Admins; technician name recorded in `performed_by`)
+- Automatically sync and display `last_maintenance_date` and `next_maintenance_date` on the Equipment UI
+- View maintenance history per equipment (filtered by branch access for restricted viewers)
+- *(Note: Temporary `maintenance-mode` alert muting and automated maintenance reminder emails are deferred to Phase 2 — see Section 8.3.)*
 
-### 4.9 Data Ingestion API
+### 4.9 Data Ingestion API & Background Evaluation
 
 **Purpose:**
-Receive monitoring data from equipment via HTTP POST requests.
+Receive monitoring data from refrigeration hardware via HTTP POST requests (plus admin manual offline fallback) and evaluate alert rules asynchronously.
 
-**Endpoint Specification:**
-- Method: HTTP POST
-- Authentication: Equipment-specific token or API key
-- Content-Type: application/x-www-form-urlencoded or application/json
+**Hardware Endpoint Specification:**
+- Method: HTTP POST (`/v1/equipments/telemetry`)
+- Authentication: Equipment-specific API key (`X-API-Key` header, verified against stored `SHA-256` hash)
+- Content-Type: `application/json` or `application/x-www-form-urlencoded`
 
-**Request Payload:**
+**Hardware Request Payload (Fixed 7 Metrics):**
 ```
 serial: [Equipment serial number]
-temperature: [Temperature value in Celsius]
-pressure: [Pressure value]
+temperature: [Temperature value in Celsius (°C)]
+pressure: [Gauge pressure value in kilopascals (kPa)]
 door: [Door status: 0=closed, 1=open]
 heater: [Heater status: 0=off, 1=on]
 compressor: [Compressor status: 0=off, 1=on]
 fan: [Fan status: 0=off, 1=on]
 ```
 
-**Server Processing:**
-1. Validate equipment serial number exists in system
-2. Verify equipment belongs to an active company
-3. Capture server timestamp (date and time)
-4. Store data in time-series database
-5. Update equipment last-seen timestamp
-6. Evaluate configured alert rules against new data:
-   - Check equipment-specific rules first
-   - Then company-specific rules
-   - Finally global rules
-   - Apply duration/persistence requirements
-7. Trigger alerts and notifications if rule conditions met
-8. Return success/error response to equipment
+**Server Processing (Hardware Ingestion):**
+1. Require `X-API-Key` header (`401` if missing) and validate all 7 required payload fields (`400` if missing/malformed)
+2. Look up equipment by `serial` (`404` if unknown) and verify constant-time match of `SHA-256(X-API-Key)` against stored hash (`401` if invalid)
+3. Verify `equipment.is_active == true` and owning company is `active` (`403` if company/equipment is deactivated)
+4. Capture timezone-aware server UTC receipt timestamp (`time`), generate UUID `record_id`, and tag `source = 'device'`
+5. Persist telemetry point in TimescaleDB hypertable, update `equipment.last_seen_at` and denormalized `equipment.current_data` JSONB snapshot, auto-resolve any open `equipment_offline` alert, and deterministically recompute `equipment.status` (immediately transitioning `offline` → `operational` when no active alerts remain)
+6. Enqueue asynchronous Celery alert rule evaluation task
+7. Return `200 OK` with `{success, message, timestamp, record_id}`
+
+**Manual Offline Entry (`POST /v1/equipments/{equipment_id}/telemetry/manual`):**
+- Authenticated via JWT (Global Admin or owning Company Admin) when equipment status is `offline`
+- Persists `temperature` (°C), optional `recorded_at` (defaults to server UTC) and `notes`, with `source = 'manual'` and `recorded_by = user_id` (`pressure` and component state columns `null`)
+- Keeps `equipment.status = 'offline'` and does **not** update `equipment.last_seen_at` or `equipment.current_data`
+
+**Background Alert & Heartbeat Evaluation (Celery Worker + Beat):**
+1. **Threshold & Door Evaluation** (triggered on hardware ingestion and periodic 60s sweep for active equipment):
+   - Resolve effective active rules per `(rule_type, severity)` in priority order (`equipment` → `company` → `global`)
+   - Verify condition has persisted across telemetry readings for `duration_seconds`
+   - Insert `Alert` protected by the partial unique index `uq_open_alert_per_rule`, recompute `equipment.status`, and dispatch a single email notification to active Company Admins and permitted Company Viewers
+   - Auto-resolve `active`/`acknowledged` threshold/door alerts once hardware readings remain within normal bounds continuously for **60 seconds** (recomputing `equipment.status`)
+2. **Offline Heartbeat Monitor** (Celery Beat every 60s across `is_active = true` equipment):
+   - Default dashboard badge timeout: transition `equipment.status` to `offline` when `now() - last_seen_at >= 600s` (10 minutes), even if no `equipment_offline` alert rule is configured
+   - Alert rule evaluation: if an active `equipment_offline` rule applies (resolved by `equipment` → `company` → `global` priority) and `now() - last_seen_at >= duration_seconds`, transition `equipment.status` to `offline`, create an `equipment_offline` alert, and send a single email notification.
 
 **Response:**
-- Success: HTTP 200 with confirmation message
-- Error: HTTP 400/401/500 with error details
-
-**Error Handling:**
-- Invalid/unknown serial number
-- Missing required fields
-- Malformed data
-- Database write failures
-- Equipment not associated with any company
+- Success: HTTP 200 with confirmation message, timestamp, and `record_id`
+- Error: HTTP 400 (validation) / 401 (auth) / 403 (inactive tenant) / 404 (unknown serial) / 429 (rate limit) / 500 (server error)
 
 **Security Considerations:**
-- API authentication required
-- Rate limiting per equipment
-- Input validation and sanitization
-- Logging of all ingestion attempts
+- API key authentication required (`X-API-Key`), stored as `SHA-256` hash at rest, rotatable via admin API
+- Rate limiting per equipment (12 req/min)
+- Strict input validation and numeric range bounds
+- Structured ingestion and error logging
 
 ## 5. User Flows
 
-### 5.1 User Login and Authentication Flow
+### 5.1 User Login, Token Refresh, Logout, and Password Reset Flow
 
-1. User navigates to login page
-2. User enters email and password
-3. System validates credentials
-4. If valid:
-   - System generates JWT access token and refresh token
-   - System updates user's last login timestamp
+1. User navigates to login page and enters email and password (`POST /v1/auth/login`)
+2. System validates credentials (rate-limited to mitigate brute force) and checks `user.status == active`
+3. If valid:
+   - System generates JWT `access_token` (1h TTL) and `refresh_token` (30d TTL)
+   - System updates `last_login_at` timestamp
    - User is redirected to dashboard
-5. If invalid:
-   - System returns error message
-   - User can retry or use password reset
-6. User accesses protected resources with access token
-7. When token expires, system uses refresh token to get new access token
-8. User logs out:
-   - System invalidates session (token removed client-side)
+4. If invalid:
+   - System returns `401` error message
+   - User can retry or initiate password reset (`POST /v1/auth/forgot-password` → email reset token → `POST /v1/auth/reset-password`)
+5. User accesses protected resources with `access_token`
+6. When `access_token` expires, client calls `POST /v1/auth/refresh` with `refresh_token` to obtain a new `access_token`
+7. User logs out (`POST /v1/auth/logout`):
+   - Server revokes token JTI in Redis blocklist until natural expiration; client clears stored tokens
    - User is redirected to login page
 
 ### 5.2 Company Onboarding Flow
 
-1. Global admin creates new company
-2. Global admin adds first company admin user
-3. Company admin receives invitation email
-4. Company admin sets password and logs in
-5. Company admin adds branches
-6. Global admin or company admin adds equipment to branches
-7. Company admin invites additional users (admins/viewers)
+1. Global admin creates new company (`POST /v1/companies`)
+2. Global admin invites first company admin user (`POST /v1/users/invite`)
+3. Company admin receives invitation email (token valid for 7 days)
+4. Company admin redeems token and sets password (`POST /v1/users/accept-invitation`), activating their account, and logs in
+5. Company admin (or Global admin) adds branches (`POST /v1/branches`)
+6. Global admin or company admin registers equipment in branches (`POST /v1/equipments`)
+7. Company admin invites additional users (`company_admin` or `company_viewer`)
 
 ### 5.3 Equipment Registration Flow
 
@@ -408,414 +454,258 @@ fan: [Fan status: 0=off, 1=on]
 2. Admin clicks "Add Equipment" button
 3. Admin fills in equipment details:
    - Serial number
-   - Equipment type (freezer, refrigerator, cold room, etc.)
+   - Equipment type (`freezer`, `refrigerator`, `cold_room`)
    - Manufacturer and model
-   - Branch assignment
-   - Installation date
-4. System generates unique API key for equipment
-5. Admin saves equipment configuration
-6. System validates serial number is unique
-7. Equipment is created and appears in equipment list
-8. Admin receives API key and configuration details
-9. Admin configures physical equipment with API key and server endpoint
-10. Equipment begins sending telemetry data
-11. Equipment appears as "operational" on dashboard once first data is received
+   - Branch assignment (must belong to admin's company)
+   - Installation date (optional)
+4. Admin saves configuration (`POST /v1/equipments`)
+5. System validates serial uniqueness and branch ownership, then generates a cryptographically secure API key (storing only its `SHA-256` hash at rest)
+6. Equipment is created with initial status `offline` and returned once with the plaintext `api_key`
+7. Admin configures physical equipment with the API key and server endpoint (and can rotate the key later via `POST /v1/equipments/{id}/rotate-api-key` if compromised)
+8. Equipment begins sending telemetry data
+9. Equipment transitions immediately to `operational` once valid hardware telemetry is received
 
 ### 5.4 Equipment Monitoring Flow
 
 1. User logs in
-2. User sees dashboard with equipment overview
-3. User filters by branch or status
-4. User clicks on equipment to see details
-5. User views temperature trends and alerts
-6. User acknowledges alerts (if admin)
+2. User sees dashboard with equipment overview (filtered to assigned branches if restricted viewer), auto-refreshing every 30 seconds via HTTP polling
+3. User filters by branch, equipment type, or status
+4. User clicks on equipment to see latest readings, applicable alert thresholds, maintenance dates, and historical charts (or exports telemetry as CSV)
+5. User views temperature/pressure trends, component states, and alerts
+6. If user is a Global Admin or Company Admin, they can acknowledge/resolve alerts, log maintenance records, or enter manual temperature readings when the unit is `offline`
 
 ### 5.5 User Invitation Flow
 
-1. Admin (global or company) enters new user email and role
-2. System sends invitation email
-3. New user clicks invitation link
-4. New user creates password and completes profile
-5. New user gains access to appropriate dashboards
+1. Admin (Global or Company) enters new user name, email, role, and optional viewer branch restrictions (`POST /v1/users/invite`)
+2. System creates user with `status = pending`, generates a single-use 7-day invitation token, and sends invitation email
+3. If the link expires, an Admin can trigger `POST /v1/users/{user_id}/resend-invitation` to issue a fresh 7-day token
+4. New user clicks invitation link and submits their chosen password (`POST /v1/users/accept-invitation`)
+5. System hashes password, transitions `status` from `pending` to `active`, clears invitation token, and grants access to dashboards
 
 ### 5.6 Branch Access Restriction Flow
 
 **Scenario: Company admin restricting a viewer to specific branches**
 
-1. Company admin navigates to user management
-2. Admin selects existing viewer or creates new viewer
-3. Admin enables "Restrict to specific branches" option
-4. Admin selects one or more branches from multi-select list (e.g., "Downtown Branch", "Airport Branch", and "Harbor Branch")
+1. Company admin (or Global admin) navigates to user management
+2. Admin selects existing viewer or invites a new viewer
+3. Admin enables "Restrict to specific branches" option (`branch_access.type = "restricted"`)
+4. Admin selects one or more branches from their company's branch list
 5. Admin saves configuration
-6. System validates at least one branch is selected
-7. System updates user permissions
-8. Viewer logs in and sees only equipment/data from their assigned branches
-9. Viewer's dashboard, alerts, and reports automatically filter to show only the assigned branches
+6. System validates that all branch IDs belong to the user's company and at least one branch is selected
+7. System updates `user_branch_access` mappings
+8. Viewer logs in and sees only branches, equipment, telemetry, CSV exports, alerts, and maintenance records from their assigned branches
 
 **Scenario: Modifying branch access**
 
-1. Company admin navigates to user management
-2. Admin clicks on branch-restricted viewer
-3. Admin adds or removes branches from assignment
-4. Admin saves changes
-5. Viewer's access updates immediately on next page load/refresh
+1. Admin navigates to user management and selects a viewer
+2. Admin adds/removes branches or switches `branch_access.type` to `"full"`
+3. Admin saves changes (`PATCH /v1/users/{user_id}`)
+4. Viewer's effective permissions update immediately on the next API request
 
 ### 5.7 Alert Management Flow
 
 **Scenario: User viewing and responding to alerts**
 
-1. User logs in and sees alert badge/notification on dashboard
-2. User clicks on alerts section
-3. System displays list of active alerts filtered by user's permissions:
+1. When an alert transitions to `active`, the background worker sends a single email notification and surfaces the alert in the dashboard feed (polled every 30s)
+2. User clicks on alerts section (`GET /v1/alerts`)
+3. System displays alerts filtered by user's permissions:
    - Branch-restricted viewers only see alerts from their assigned branches
    - Company users see alerts from their company
-   - Global admins see all alerts
-4. User filters alerts by:
-   - Severity (warning, critical)
-   - Status (active, acknowledged, resolved)
-   - Date range
-   - Branch or equipment
-5. User clicks on specific alert to view details:
-   - Equipment information
-   - Alert type and severity
-   - Current readings vs threshold
-   - Timestamp and duration
-   - Historical context
-6. If user is admin, they can acknowledge alert:
-   - Add notes about action taken
-   - Mark alert as acknowledged
-   - System records who acknowledged and when
-7. User can view alert history and trends
-8. When issue is resolved (equipment readings return to normal):
-   - System automatically marks alert as resolved
-   - Notification sent to users who acknowledged it
+   - Global admins see all alerts across tenants
+4. User filters alerts by severity (`warning`, `critical`), status (`active`, `acknowledged`, `resolved`), date range, branch, or equipment, and can export the filtered list as CSV (`GET /v1/alerts/export`)
+5. User clicks on a specific alert (`GET /v1/alerts/{alert_id}`) to view equipment info, current readings vs threshold, duration, and context
+6. If user is an Admin (Global or Company), they can:
+   - Acknowledge the alert with action notes (`POST /v1/alerts/{alert_id}/acknowledge`)
+   - Manually resolve the alert if addressed out-of-band (`POST /v1/alerts/{alert_id}/resolve`)
+7. When hardware readings return to normal, the background evaluator automatically resolves active/acknowledged alerts
 
-### 5.8 Alert Rule Configuration Flow (Global Admin)
+### 5.8 Alert Rule Configuration Flow
 
-**Scenario: Creating and assigning alert rules**
+**Scenario: Creating and assigning alert rules (Global Admin)**
 
-1. Global admin navigates to alert rule management
-2. Admin clicks "Create Alert Rule"
-3. Admin configures rule parameters:
+1. Global admin navigates to alert rule management and clicks "Create Alert Rule"
+2. Admin configures rule parameters:
    - Rule name and description
-   - Rule type (temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline)
-   - Threshold value
-   - Comparison operator (>, <, ≥, ≤, =)
-   - Duration (how long condition must persist)
-   - Severity level (warning, critical)
-   - Custom message template
-4. Admin selects assignment scope:
-   - **Option A - Global**: Rule applies to all equipment across all companies
-   - **Option B - Company-specific**: Admin selects one or more companies
-   - **Option C - Equipment-specific**: Admin selects specific equipment units
-5. Admin enables/disables rule
-6. Admin saves configuration
-7. System validates rule parameters
-8. Rule is activated and begins monitoring:
-   - Equipment sends telemetry data
-   - System evaluates rules in priority order (equipment → company → global)
-   - When condition is met for specified duration, alert is triggered
-9. Admin can view rule statistics:
-   - How many times rule has triggered
-   - Which equipment is affected most
-   - Average trigger frequency
-10. Admin can edit or disable rules:
-    - Modify thresholds or parameters
-    - Temporarily disable during maintenance
-    - Delete rule with confirmation
+   - Rule type (`temperature_high`, `temperature_low`, `pressure_high`, `pressure_low`, `door_open`, `equipment_offline`)
+   - Threshold value and comparison operator (`>`, `<`, `>=`, `<=`, `=`) for numeric rules (`null` for `door_open` and `equipment_offline`)
+   - Duration (`duration_seconds` condition must persist)
+   - Severity level (`warning`, `critical`) and custom message template
+3. Admin selects assignment scope (`global`, `company` + `company_id`, or `equipment` + `equipment_id`) and active state
+4. Admin saves configuration (`POST /v1/alert-rules`); system validates parameters and activates rule
+5. Global Admin can view trigger statistics (`GET /v1/alert-rules/{rule_id}/statistics`), edit, disable, or delete rules
+6. Company Admins can view applicable rules in read-only mode (`GET /v1/alert-rules` and `GET /v1/equipments/{equipment_id}/alert-rules`)
 
 **Scenario: Handling rule priority**
 
-1. Equipment sends temperature reading of 9°C
-2. System checks applicable rules in order:
-   - Equipment-specific rule: temperature > 7°C (MATCHES - triggers alert)
-   - Company-specific rule: temperature > 8°C (would match but lower priority)
-   - Global rule: temperature > 10°C (does not match)
-3. System generates alert based on highest priority matching rule
-4. Alert is sent to relevant users based on branch access permissions
+1. Equipment sends temperature reading of 9°C sustained across `duration_seconds` (e.g., 300s)
+2. System checks applicable `(temperature_high, critical)` rules in order:
+   - Equipment-specific rule: temperature > 7°C (MATCHES — highest priority, selected)
+   - Company-specific rule: temperature > 8°C (shadowed for `(temperature_high, critical)`)
+   - Global rule: temperature > 10°C (shadowed for `(temperature_high, critical)`)
+3. System generates a single alert based on the highest-priority rule for that `(rule_type, severity)` pair and dispatches a single email notification
 
-### 5.9 Equipment Data Ingestion Flow
+### 5.9 Equipment Data Ingestion & Manual Fallback Flow
 
 **Scenario: Equipment sending monitoring data**
 
-1. Equipment collects sensor readings (temperature, pressure, door status, etc.)
-2. Equipment prepares HTTP POST request with monitoring data
-3. Equipment sends POST request to server endpoint with:
-   - Serial number
-   - Temperature reading
-   - Pressure reading
-   - Door status
-   - Heater status
-   - Compressor status
-   - Fan status
-4. Server receives request and validates equipment serial number
-5. Server verifies equipment belongs to active company
-6. Server captures timestamp and stores data in time-series database
-7. Server evaluates alert rules against new data
-8. If temperature exceeds threshold or equipment goes offline:
-   - System generates alert
-   - System sends notifications to relevant users (filtered by branch access)
-9. Server returns success response to equipment
-10. Dashboard automatically updates for users viewing that equipment (real-time or near-real-time)
-11. Historical data charts update with new data point
+1. Equipment collects the 7 sensor metrics (`serial`, `temperature` in °C, `pressure` in kPa, `door`, `heater`, `compressor`, `fan`)
+2. Equipment sends `POST /v1/equipments/telemetry` (`application/json` or `application/x-www-form-urlencoded`) with `X-API-Key` header
+3. Server validates `X-API-Key` presence, required payload fields, equipment `serial` existence, `SHA-256` API key match, and active company status
+4. Server captures UTC receipt timestamp, stores telemetry (`source = 'device'`) in TimescaleDB hypertable, updates `equipment.last_seen_at`, and transitions `offline` equipment to `operational` (if no active alerts exist)
+5. Server returns `200 OK` to equipment and enqueues background Celery rule evaluation
+6. Background worker evaluates applicable generic alert rules (`duration_seconds`) and triggers/auto-resolves alerts as needed
 
-**Error Scenarios:**
-- **Unknown serial number**: Server returns 400 error, equipment logs failure
-- **Network failure**: Equipment retries after interval (with exponential backoff)
-- **Server timeout**: Equipment queues data and attempts resend
+**Error & Offline Fallback Scenarios:**
+- **Missing fields / malformed payload**: Server returns `400 Bad Request`
+- **Missing or invalid `X-API-Key`**: Server returns `401 Unauthorized`
+- **Unknown serial number**: Server returns `404 Not Found`
+- **Extended hardware / network outage**: Periodic 60s heartbeat check marks equipment `offline`; Global Admins or owning Company Admins can log manual thermometer checks via `POST /v1/equipments/{equipment_id}/telemetry/manual` (`source = 'manual'`, keeping status `offline` until hardware reports again)
 
 ### 5.10 Branch Management Flow
 
-**Scenario: Company admin creating and managing branches**
+**Scenario: Admin creating and managing branches**
 
-1. Company admin logs in and navigates to branch management
-2. Admin clicks "Add Branch" button
-3. Admin fills in branch details:
-   - Branch name
-   - Physical address
-   - Branch manager contact (optional)
-4. Admin saves branch configuration
-5. System validates branch information
-6. Branch is created and appears in branch list
-7. Admin can now:
-   - Assign equipment to the new branch
-   - Assign users with branch-restricted access to this branch
-   - View equipment count per branch
-   - Edit branch information
-   - View all equipment at this branch location
-8. Admin can filter dashboard views by branch
-9. When viewing branch details:
-   - See list of equipment at branch
-   - See branch-restricted users assigned to this branch
-   - View aggregate statistics (total equipment, active alerts, etc.)
+1. Company admin or Global admin navigates to branch management and clicks "Add Branch"
+2. Admin fills in branch name, physical address, and optional branch manager contact (`POST /v1/branches`)
+3. System validates branch uniqueness within the company and creates the branch
+4. Admin can register/reassign equipment to the branch, assign branch-restricted viewers, edit branch details, or filter dashboards by branch
 
-**Scenario: Editing or deactivating a branch**
+**Scenario: Editing or deleting a branch**
 
-1. Company admin selects existing branch
-2. Admin can update branch information
-3. If deleting/deactivating branch:
-   - System checks for assigned equipment
-   - System warns if equipment will be orphaned
-   - System checks for branch-restricted users with only this branch
-   - Admin must reassign equipment before deletion
-   - Admin confirms deletion
-4. Branch is removed from system
+1. Admin selects an existing branch to update (`PATCH /v1/branches/{branch_id}`) or delete (`DELETE /v1/branches/{branch_id}`)
+2. Before deleting a branch, the system enforces two guards:
+   - **Assigned equipment check**: Deletion is blocked (`409 Conflict`) if any equipment is still assigned to the branch; admin must reassign or deactivate equipment first
+   - **Orphaned restricted-viewer check**: Deletion is blocked (`409 Conflict`) if any `restricted` viewer has *only* this branch assigned; admin must assign another branch, switch the viewer to `full` access, or deactivate the viewer first (if a viewer has multiple branches, removing this branch simply removes that mapping)
+3. Once preconditions pass and admin confirms, the branch is deleted
 
-### 5.11 Maintenance Logging Flow
+### 5.11 Maintenance Logbook Flow
 
-**Scenario: Logging maintenance activity for equipment**
+**Scenario: Logging maintenance activity**
 
-1. User (admin or technician) navigates to equipment details
-2. User clicks "Log Maintenance" button
-3. User fills in maintenance details:
-   - Maintenance type (routine inspection, repair, part replacement, emergency fix)
+1. Admin (Global Admin or Company Admin) navigates to equipment details and clicks "Log Maintenance" (`POST /v1/equipments/{equipment_id}/maintenance-records`)
+2. Admin enters:
+   - Maintenance type (`routine_inspection`, `repair`, `part_replacement`, `emergency_fix`)
    - Description of work performed
-   - Technician name
-   - Parts replaced (if any)
-   - Notes and observations
-   - Next scheduled maintenance date
-   - Maintenance duration
-4. User saves maintenance record
-5. System timestamps the maintenance activity
-6. System updates equipment's "last maintenance date"
-7. System updates equipment's "next scheduled maintenance"
-8. Maintenance record appears in equipment history
-9. System may temporarily suppress alerts during maintenance (if configured)
-10. User can view maintenance history:
-    - See all past maintenance activities
-    - Filter by maintenance type
-    - View maintenance frequency
-    - Track maintenance costs (if tracked)
-11. Dashboard shows equipment with upcoming maintenance due dates
-12. System can send notifications when maintenance is approaching or overdue
-
-**Scenario: Scheduled maintenance notification**
-
-1. System checks daily for equipment with upcoming maintenance
-2. When maintenance is due within 7 days:
-   - System generates maintenance reminder
-   - Notification sent to company admins
-   - Equipment flagged on dashboard as "maintenance due"
-3. When maintenance becomes overdue:
-   - Severity escalates to warning
-   - More frequent notifications sent
-   - Equipment status may show "maintenance overdue"
-4. After maintenance is logged:
-   - Notifications are cleared
-   - Next maintenance date is set
-   - Equipment returns to normal status
+   - Technician name (`performed_by` string — records the internal or third-party technician who performed the work)
+   - Optional notes and `next_maintenance_date`
+3. System saves the maintenance record and updates `equipment.last_maintenance_date` and `equipment.next_maintenance_date` displayed on the Equipment UI
+4. All permitted users (including Viewers for accessible branches) can view the equipment's maintenance history (`GET /v1/equipments/{equipment_id}/maintenance-records`), and Admins can update or delete records (`PATCH`/`DELETE /v1/maintenance-records/{record_id}`)
 
 ## 6. Technical Considerations
 
 ### 6.1 Multi-tenancy
 
-- Data isolation between companies
-- Role-based access control (RBAC)
-- Branch-level access control for granular permissions
-- Tenant-specific configurations
+- Strict data isolation between companies
+- Role-based access control (RBAC) across all routes
+- Branch-level access control (`user_branch_access`) for `company_viewer`
 - Efficient query filtering for branch-restricted users
 
-### 6.2 Real-time Monitoring
+### 6.2 Near-Real-Time Monitoring
 
-- Equipment sends data via HTTP POST at configurable intervals
-- Dashboard updates via WebSocket or polling for live data display
-- Data refresh intervals configurable per equipment or globally
-- Offline detection based on last-seen timestamp (e.g., no data received in 2x expected interval)
-- Handling of intermittent connectivity from equipment
+- Hardware sends telemetry via HTTP POST (`POST /v1/equipments/telemetry`)
+- Dashboard updates every **30 seconds** via HTTP polling (`GET /v1/telemetry/realtime` and `GET /v1/alerts`) backed by a denormalized `current_data` JSONB snapshot on `equipments` (`fillfactor = 80`) — avoiding hypertable joins on every poll
+- Offline detection runs every 60 seconds via Celery Beat: units silent for **>= 10 minutes (`600s`)** flip `equipment.status` to `offline` on the dashboard by default, while `equipment_offline` alerts + emails fire according to configured `equipment_offline` rules
+- Admin manual temperature logging (`source = 'manual'`) covers compliance tracking during prolonged equipment connectivity loss
 
 ### 6.3 Data Storage
 
-**Time-Series Data:**
-- Temperature readings (timestamp, value)
-- Pressure readings (timestamp, value)
-- Component status over time (door, heater, compressor, fan)
-- Optimized for range queries and aggregations
-- Data retention policies (e.g., full resolution for 30 days, aggregated for 1 year)
+**Time-Series Data (TimescaleDB Hypertable — `telemetry`):**
+- Composite key `(time, equipment_id, id)` with UUID `id` (`record_id`), timezone-aware `time` (UTC), `equipment_id`, and `temperature` (°C, `NOT NULL`)
+- Hardware metrics (`pressure` in kPa, `door`, `heater`, `compressor`, `fan` as `0`/`1` — nullable when `source = 'manual'`)
+- Provenance metadata: `source` (`'device'` or `'manual'`), `recorded_by` (nullable `user_id`), and `notes` (nullable text)
+- Automatic 1-day chunk partitioning on `time`
+- Compression policy: compress chunks older than **7 days** (segmented by `equipment_id`, ordered by `time DESC`)
+- Retention policy: retain raw telemetry for **2 years**, with continuous aggregates (`telemetry_hourly`, `telemetry_daily`) for long-term charts and multi-month CSV exports
 
-**Relational Data:**
-- Companies, branches, equipment, users
-- Equipment configuration and metadata
-- User permissions and branch access mappings
-- Alert rules and thresholds per equipment
+**Relational Data (PostgreSQL):**
+- Companies, branches (`UNIQUE (id, company_id)`), equipment (`is_active` soft-deactivation flag, `SHA-256` hashed API keys, `last_seen_at`, `current_data` JSONB snapshot with `fillfactor = 80`, `last_maintenance_date`, `next_maintenance_date` — no destructive `delete-orphan` cascades onto historical records), and users
+- User permissions and branch access mappings (`user_branch_access`), enforced via centralized query-scoping helpers
+- Generic alert rules per scope (`global`, `company`, `equipment`), plus partial unique index `uq_open_alert_per_rule` on `alerts (equipment_id, alert_rule_id) WHERE status IN ('active', 'acknowledged')`
 
 **Logs and History:**
-- Alert history and acknowledgments
-- Maintenance records
-- User activity audit logs
-- Data ingestion logs (for debugging)
+- Alert history, acknowledgments, and manual/auto resolutions
+- Equipment maintenance logbook (`maintenance_records`)
+- Immutable administrative audit logs (`audit_logs`), exposed to Global Admins via `GET /v1/audit-logs` and the Global Admin UI
+- Structured ingestion & error logs
 
 ### 6.4 Security
 
 **User Authentication:**
-- Authentication and authorization for web users
-- Secure invitation token system
-- Session management
-- Audit logging for admin actions
+- JWT access tokens (1h TTL) + refresh tokens (30d TTL) with Redis JTI revocation blocklist on logout/deactivation
+- Single-use, expiring tokens for user invitations (7-day TTL) and password resets (1-hour TTL)
+- Audit logging for all administrative mutations (`audit_logs`)
 
 **Equipment API Security:**
-- Equipment authentication via API keys or tokens
-- Per-equipment credentials for data ingestion endpoint
-- Rate limiting to prevent abuse or DoS
-- Input validation and sanitization
-- Protection against data injection attacks
+- Per-equipment API keys (`X-API-Key`), generated server-side, stored as a **`SHA-256` hash** at rest, returned in plaintext only once on creation/rotation, and rotatable on demand
+- Constant-time key hash verification paired with `serial` ownership and `is_active` check
+- Per-equipment rate limiting (12 req/min) to prevent abuse
+- Strict schema validation and numeric range bounds
 
 **Data Transmission:**
-- HTTPS/TLS encryption for all communications
-- Encrypted data transmission between equipment and server
-- Secure storage of API credentials
+- HTTPS/TLS 1.2+ encryption required for all web, API, and equipment telemetry traffic
+- Environment-based secret management (zero hardcoded production credentials)
 
 ### 6.5 Scalability
 
-- Support for multiple companies
-- Support for hundreds of equipment units per company
-- Efficient data querying and aggregation
+- Multi-tenant support across dozens of companies and thousands of equipment units
+- Denormalized `current_data` snapshot on `equipments` keeps 30s dashboard polling O(N_equipments) without scanning `telemetry` chunks
+- Asynchronous rule evaluation and single-email alert delivery (with retry/backoff) via Celery workers
+- Streamed CSV exports (`yield_per` server-side cursors) capped at **90 days** for `interval=raw` and **2 years** for `1hour`/`1day` aggregates
 
 ### 6.6 Backend Architecture
 
 **Technology Stack:**
-- **Framework**: Flask (Python 3.10+)
-- **API Design**: RESTful API following OpenAPI 3.0 specification
+- **Framework**: Flask 3.x (Python 3.10+)
+- **API Design**: RESTful API following OpenAPI 3.0 specification (`/v1/` prefix)
 - **Database**:
   - **PostgreSQL 14+** with **TimescaleDB extension**
-  - **Relational tables**: companies, users, equipment, branches, alert rules
-  - **Time-series hypertables**: telemetry data (temperature, pressure, component status)
-  - **Benefits**:
-    - Single database for both relational and time-series data
-    - Standard SQL with seamless JOINs across data types
-    - Automatic time-based partitioning (chunking)
-    - Continuous aggregates for pre-computed statistics
-    - Built-in compression for older data
-    - Data retention policies
+  - **Relational tables**: `companies`, `branches`, `users`, `user_branch_access`, `equipments`, `alert_rules`, `alerts`, `maintenance_records`, `audit_logs`
+  - **Time-series hypertables**: `telemetry` (with `telemetry_hourly` and `telemetry_daily` continuous aggregates)
 - **Authentication**:
-  - JWT (JSON Web Tokens) via Flask-JWT-Extended
-  - API Key authentication for equipment
-- **Real-time Communication**: Flask-SocketIO for WebSocket support
-- **Background Tasks**: Celery with Redis/RabbitMQ for async processing
-  - Alert rule evaluation
-  - Email notifications
-  - Data aggregation jobs
-- **API Documentation**:
-  - Swagger/OpenAPI via flask-swagger-ui or flasgger
-  - Auto-generated from code
-- **Validation**: marshmallow or pydantic for request/response validation
-- **Database ORM**: SQLAlchemy
-- **Migrations**: Alembic for database schema migrations
-- **Caching**: Redis for session management and caching
-- **Logging**: Python logging with structured logs (JSON format)
-- **Monitoring**:
-  - Application metrics via Prometheus
-  - Error tracking via Sentry (optional)
+  - User JWTs via `Flask-JWT-Extended` (with Redis blocklist)
+  - Equipment API Key authentication (`X-API-Key` verified via `SHA-256` hash)
+- **Background Tasks**: `Celery` + `Celery Beat` with **Redis** as message broker and result backend
+  - Event-driven and periodic (60s) generic alert rule evaluation (with 60s normal-reading hysteresis before auto-resolution)
+  - Periodic (60s) equipment offline heartbeat detection (10-minute default `offline` badge + rule-based `equipment_offline` alerts)
+  - Async single-email alert dispatch (`Flask-Mail` with automatic task retry/exponential backoff)
+- **Validation**: `Marshmallow` schemas for all request bodies and query parameters
+- **Database ORM & Migrations**: `SQLAlchemy 2.x` + `Flask-Migrate` (`Alembic`)
+- **Rate Limiting**: `Flask-Limiter` backed by Redis
+- **Logging & Monitoring**: Structured JSON logging and deep `/health` readiness endpoint verifying PostgreSQL (`SELECT 1`) and Redis (`PING`) connectivity
 
 **Security:**
-- CORS configuration for frontend access
-- Rate limiting via Flask-Limiter
-- Input validation and sanitization
-- SQL injection prevention via ORM
-- Password hashing with bcrypt
-- Environment-based configuration (no hardcoded secrets)
+- Explicit CORS allowlist in production
+- Rate limiting via `Flask-Limiter` (especially on `/v1/auth/*` and `/v1/equipments/telemetry`)
+- Input validation and sanitization via Marshmallow
+- SQL injection prevention via SQLAlchemy parameterized queries
+- Password hashing with `bcrypt`; equipment API keys hashed with `SHA-256`
 
-**Testing:**
-- Unit tests: pytest
-- Integration tests: pytest with test database
-- API tests: pytest with Flask test client
-- Code coverage: pytest-cov
+**Testing & Quality:**
+- Unit, integration, and end-to-end API flow tests via `pytest` + `pytest-flask` + `pytest-cov` (note: test fixtures in `tests/conftest.py` store `SHA-256` hashed equipment API keys while passing plaintext keys in test `X-API-Key` headers)
+- Formatting & linting: `black`, `flake8`, `mypy`
 
-**Development Tools:**
-- Virtual environment: venv or poetry
-- Code formatting: black, isort
-- Linting: pylint or flake8
-- Type checking: mypy (optional)
-
-**Deployment Considerations:**
-- WSGI server: Gunicorn or uWSGI
-- Reverse proxy: Nginx
-- Container: Docker
-- Orchestration: Docker Compose or Kubernetes
-- Environment: Development, Staging, Production
+**Deployment:**
+- WSGI server: `Gunicorn` behind `Nginx`
+- Containers: `Docker` + `Docker Compose` (Flask API, Celery Worker, Celery Beat, TimescaleDB, Redis)
 
 ### 6.7 Frontend Architecture
 
 **Technology Stack:**
-- **Framework**: React (latest stable version)
-- **State Management**: Context API or Redux (TBD based on complexity)
-- **API Integration**: Axios or Fetch API with JWT authentication
-- **Real-time Updates**: WebSocket client or polling mechanism
-- **UI Components**: Ant Design (antd)
-  - Comprehensive component library
-  - Built-in internationalization support (pt-BR and en-US)
-  - Enterprise-grade design system
-  - Table, Form, Modal, and Dashboard components
-  - Responsive grid system
-  - Theme customization support
-- **Charts/Visualization**: Chart.js, Recharts, or D3.js for telemetry data
-- **Routing**: React Router for SPA navigation
+- **Framework**: React 19 + Vite
+- **State Management**: React Context API (auth state, tenant/branch filter context)
+- **API Integration**: Axios with JWT request/refresh interceptors (`VITE_API_URL` environment configuration)
+- **Live Data Refresh**: 30-second HTTP polling (`GET /v1/telemetry/realtime` and `GET /v1/alerts`)
+- **UI Components**: Ant Design (`antd`) configured with the built-in Brazilian Portuguese (`ptBR`) locale provider
+- **Charts/Visualization**: `Recharts` for time-series temperature, pressure, and component-state charts
+- **Routing**: `react-router-dom` for SPA navigation and role-protected routes (including Global Admin Audit Logs view)
 
-**Internationalization (i18n):**
-- **Library**: react-i18next or react-intl
-- **Supported Languages**:
-  - Portuguese (Brazil) - Primary
-  - English - Secondary
-- **Translation Coverage**:
-  - All UI text, labels, and messages
-  - Error messages and validation feedback
-  - Alert notifications and email templates
-  - Dashboard titles and descriptions
-  - Form placeholders and help text
-- **Language Selection**:
-  - User preference stored in profile
-  - Browser language detection as default
-  - Language switcher in user menu
-  - Persisted across sessions
-- **Number and Date Formatting**:
-  - Locale-aware number formatting (decimals, thousands separators)
-  - Date/time formatting based on user locale
-  - Temperature units (°C/°F) based on region
-  - Timezone handling for timestamps
+**Language & Units (Lean v1):**
+- **Language**: Brazilian Portuguese (`pt-BR`) only in v1 (multi-language `en-US` via `react-i18next` deferred to Phase 2)
+- **Units**: Celsius (`°C`) for temperature and kilopascals (`kPa`) for pressure only in v1 (`°F` conversion toggle deferred to Phase 2)
 
 **Responsive Design:**
-- Desktop-first approach (primary use case)
-- Tablet support for field technicians
-- Mobile web view for basic monitoring
+- Desktop-first approach for control-room monitoring
+- Tablet-friendly views (768px+) for on-site managers and maintenance staff
 - Breakpoints: Desktop (1920px), Laptop (1366px), Tablet (768px)
 
 **Performance Considerations:**
@@ -824,7 +714,6 @@ fan: [Fan status: 0=off, 1=on]
 - Virtualization for large lists (equipment, alerts)
 - Debounced search and filter operations
 - Memoization for expensive calculations
-- Service worker for offline capability (future)
 
 **Accessibility:**
 - WCAG 2.1 Level AA compliance
@@ -842,885 +731,148 @@ fan: [Fan status: 0=off, 1=on]
 - Equipment uptime percentage
 - Maintenance completion rate
 
-## 8. Future Considerations
+## 8. Future Work (Phase 2+)
 
-### 8.1 Smart Anomaly Detection Alerts (Phase 2)
+To keep the v1 MVP lean and focused on operational delivery for Polo Sanca, the following capabilities are intentionally deferred to Phase 2+:
+
+### 8.1 Smart Anomaly Detection Alerts
 
 **Overview:**
-Implement machine learning-based anomaly detection to automatically identify unusual equipment behavior patterns without manual threshold configuration.
+Explore statistical and machine-learning anomaly detection to identify unusual equipment behavior patterns without manual threshold configuration once sufficient historical telemetry (30+ days per unit) has been collected.
 
-**Capabilities:**
+**Domain Anomaly Candidates:**
+1. **Temperature anomalies**: Gradual temperature drift, unexpected spikes/drops, or slower pull-down recovery after door openings
+2. **Component behavior anomalies**: Short-cycling compressors, unusually long fan runs, or irregular heater activation
+3. **Usage pattern anomalies**: Door openings at unusual hours or frequencies
+4. **Performance degradation**: Declining cooling efficiency or lengthening recovery times over months
+5. **Multi-variable anomalies**: Correlated symptoms across metrics (e.g., rising temperature with low compressor activity)
 
-**Pattern Learning:**
-- System automatically learns normal operational patterns for each equipment
-- Builds baseline profiles based on historical data (temperature cycles, compressor patterns, door usage)
-- Adapts to seasonal variations, usage patterns, and time-of-day variations
-- Per-equipment learning or equipment-type templates
+**Planned Iterative Rollout (Exploratory):**
+- **Phase 2.1**: Rolling statistical baselines (mean + standard deviation / z-scores per equipment)
+- **Phase 2.2**: Single-metric outlier models (e.g., Isolation Forest) with Global Admin sensitivity controls and false-positive feedback
+- **Phase 2.3**: Multi-variate pattern detection and post-maintenance baseline reset triggers
 
-**Anomaly Types Detected:**
-1. **Temperature anomalies**
-   - Gradual temperature drift indicating failing components
-   - Unexpected temperature spikes or drops
-   - Longer time to reach target temperature
+### 8.2 Real-Time WebSockets (`Flask-SocketIO`)
 
-2. **Component behavior anomalies**
-   - Compressor cycling too frequently or irregularly
-   - Fan running longer than typical
-   - Heater activating at unusual times
+- Push live `telemetry:update`, `alert:created`, and `alert:resolved` events over authenticated `Flask-SocketIO` rooms (replacing or supplementing v1's 30-second HTTP polling).
 
-3. **Usage pattern anomalies**
-   - Door opening at unusual times or frequencies
-   - Abnormal access patterns
+### 8.3 Maintenance Mode Alert Suppression & Scheduled Maintenance Reminders
 
-4. **Performance degradation**
-   - Equipment efficiency declining over time
-   - Energy consumption increasing
-   - Recovery time after door opening lengthening
+- Temporary per-equipment **Maintenance Mode** (`maintenance_until` window via `POST /v1/equipments/{equipment_id}/maintenance-mode`) allowing Admins to mute threshold/door alerts while technicians service or restock a unit.
+- Cross-equipment upcoming/overdue maintenance dashboard (`GET /v1/maintenance-records/upcoming`) and automated daily scheduled reminder emails before/after `next_maintenance_date`.
 
-5. **Multi-variable anomalies**
-   - Unusual combinations of metrics (e.g., high temp + low compressor activity)
-   - Correlated failures across multiple sensors
+### 8.4 Configurable Notification Preferences & Critical Alert Escalations
 
-**Detection Methods:**
-- **Statistical approaches**: Standard deviation from rolling baselines, z-scores
-- **Machine learning models**:
-  - Isolation Forest for outlier detection
-  - Autoencoders for pattern reconstruction
-  - LSTM networks for time-series predictions
-  - One-class SVM for novelty detection
-- **Time-series analysis**: Trend detection, seasonality breaks
-- **Ensemble methods**: Combine multiple algorithms for higher accuracy
+- Per-user notification preference toggles (in-app vs. email, severity filters) and notification cooldown windows.
+- Multi-tier escalation timers (e.g., secondary email, SMS, or phone voice alert if a `critical` alert remains unacknowledged past SLA).
 
-**Alert Generation:**
-- Anomaly score/confidence level (0-100%)
-- Explanation of what's unusual (e.g., "Temperature 2.3°C higher than typical for this time")
-- Visualization comparing current vs expected patterns
-- Suggested actions based on anomaly type
-- Historical context (similar past anomalies and outcomes)
+### 8.5 Multi-Language Internationalization (`en-US`) & Unit Switching
 
-**Configuration by Global Admins:**
-- Set sensitivity levels (how unusual before alerting)
-- Define learning period duration (e.g., 30 days of data required)
-- Enable/disable anomaly detection per company or equipment
-- Review and approve ML model predictions before auto-alerting
-- Override false positives to improve model
+- Secondary English (`en-US`) localization via `react-i18next` alongside `pt-BR`.
+- User-selectable display units (`°F` temperature conversion, `psi`/`bar` pressure conversion) persisted on user profiles.
 
-**Benefits:**
-- **Early warning**: Detect issues days or weeks before failure
-- **Reduced false alarms**: Context-aware alerts vs simple thresholds
-- **Predictive maintenance**: Schedule repairs before breakdowns
-- **Automatic adaptation**: No need to reconfigure as equipment ages
-- **Unknown unknowns**: Catch issues you didn't think to configure
+### 8.6 Offline Hardware Batch Ingestion, PDF Reports, Webhooks & External Integrations
 
-**Technical Requirements:**
-- Historical data storage (minimum 30 days for baseline)
-- ML model training pipeline
-- Feature engineering from raw telemetry
-- Model versioning and A/B testing
-- Explainable AI for alert justification
+- Buffered hardware batch ingestion (`POST /v1/equipments/telemetry/batch` with device-side `recorded_at` timestamps) for controllers with local flash queues.
+- Formatted PDF compliance reports (supplementing v1 CSV exports).
+- Outbound tenant webhooks for alert/offline events and bi-directional integration with external ERP, CRM, or CMMS platforms, plus native mobile apps (iOS/Android).
 
-**API Extensions:**
-```
-GET /v1/equipments/{equipment_id}/anomaly-detection/status
-GET /v1/equipments/{equipment_id}/anomaly-detection/history
-POST /v1/anomaly-detection/configure
-GET /v1/anomaly-detection/insights
-PATCH /v1/alerts/{alert_id}/feedback  (mark as false positive)
-```
+## 9. Resolved Product & Architecture Decisions (v1 MVP)
 
-**Phases:**
-- **Phase 2.1**: Statistical anomaly detection (baseline + std deviation)
-- **Phase 2.2**: ML-based detection for single metrics
-- **Phase 2.3**: Multi-variate pattern detection
-- **Phase 2.4**: Predictive failure modeling
+All product, domain, and architectural open points for v1 have been resolved in favor of a lean, pragmatic MVP:
 
-### 8.2 Other Future Enhancements
-
-- Native mobile applications (iOS/Android) for on-the-go monitoring
-- Integration with additional equipment IoT sensors
-- Automated maintenance scheduling based on predictions
-- Advanced custom reporting and analytics dashboards
-- Public API for third-party integrations
-- Equipment performance benchmarking across similar units
-- Energy consumption tracking and optimization recommendations
-- Voice alerts via phone calls for critical issues
-- Integration with existing CMMS (Computerized Maintenance Management Systems)
-
-## 9. Open Questions
-
-**User Management:**
-1. Should there be a super admin role above global admin?
-2. Should company admins also have the option to be branch-restricted, or only viewers?
-3. What happens when a branch is deleted - should users assigned to only that branch be automatically converted to full access or notified?
-4. Should there be a bulk assignment feature to assign multiple viewers to the same branches at once?
-
-**Monitoring Data:**
-5. What are the default alert rule thresholds for different equipment types?
-6. How frequently should equipment data be collected? (default interval and configurable per equipment?)
-7. What are the acceptable pressure ranges for different equipment types?
-8. What units should pressure be measured in?
-9. How long should historical data be retained at full resolution vs aggregated?
-
-**Alert Rules:**
-10. Should Global Admins be able to create custom alert rule types beyond the predefined ones?
-11. Should there be a notification when alert rules are modified or deleted?
-12. Should Company Admins have read-only access to view their assigned alert rules?
-
-**System Integration:**
-13. What equipment types need to be supported initially?
-14. What is the expected number of concurrent users?
-15. What is the expected number of equipment units per company?
-16. Should equipment maintenance be automatically logged or manually entered?
-17. What integration points exist with existing Polo Sanca systems?
-
-**Features:**
-18. Should viewers be able to export reports?
-19. Should the system support manual data entry if equipment goes offline?
-20. Should Company Admins be able to temporarily disable alerts for their equipment during maintenance?
-
-**Anomaly Detection (Phase 2):**
-21. What is the minimum historical data required before enabling anomaly detection for equipment?
-22. Should anomaly detection be opt-in or opt-out for companies?
-23. How should the system handle learning periods when equipment behavior changes (e.g., after repairs)?
-24. Should Company Admins see anomaly detection insights or only Global Admins?
-25. What sensitivity level should be default for anomaly detection alerts?
-26. Should the system automatically disable learning during maintenance periods?
-
-**Backend:**
-27. Should we use marshmallow or pydantic for API validation?
-28. What message broker for Celery: Redis or RabbitMQ?
-29. Should we implement database connection pooling (e.g., pgBouncer)?
-30. What's the strategy for database backups and disaster recovery?
-31. Should we use Docker Compose for development or full Kubernetes?
-32. What retention policies for telemetry data? (e.g., raw data for 30 days, hourly aggregates for 1 year)
-33. What compression policies for older TimescaleDB data?
-
-**Frontend & Internationalization:**
-34. Should state management use Context API or Redux?
-35. What chart library should be used for telemetry visualization?
-36. Should translation files be managed in-code or via a translation management platform (e.g., Lokalise, Crowdin)?
-37. Who will be responsible for providing Portuguese and English translations?
-38. Should the system support RTL (right-to-left) languages for future expansion?
-39. How should we handle dynamic content translation (e.g., user-generated alert messages)?
-40. Should Ant Design's built-in theme be customized to match Polo Sanca branding?
+1. **Roles & Permissions:** Keep the **3 existing roles** (`global_admin`, `company_admin`, `company_viewer`). No separate `technician` user role—Global Admins and Company Admins log maintenance records and record the technician's name in the `performed_by` string. Branch restrictions apply exclusively to `company_viewer`.
+2. **Company Admin Scope:** Company Admins have full CRUD over branches, equipment (including API key rotation), user invitations/viewer branch restrictions, alert acknowledgment/resolution, manual offline temperature entry, and maintenance records within their company, plus **read-only visibility** into applicable alert rules (`global` + own `company`/`equipment`). Rule creation/editing remains Global Admin only.
+3. **Branch Deletion Safety:** Deleting a branch returns `409 Conflict` if equipment is still assigned OR if any `restricted` viewer is assigned *only* to that branch.
+4. **Hardware Telemetry Contract:** Hardware ingestion (`POST /v1/equipments/telemetry`, supporting both `application/json` and `application/x-www-form-urlencoded`) strictly uses the **7 fixed hardware fields** (`serial`, `temperature` in °C, `pressure` in kPa, `door`, `heater`, `compressor`, `fan`) with server-captured UTC timestamps (`source = 'device'`). Hardware `recorded_at` and batch ingestion are deferred to Phase 2.
+5. **Generic Alert Rules:** Alert rules remain **100% generic** (`rule_type`, nullable `threshold_value` & `comparison_operator` for `door_open`/`equipment_offline`, `duration_seconds`, `severity`, `scope`, `scope_id`). No rules are pre-seeded, and no custom defrost state-machine or `equipment_type` rule filter is needed—`duration_seconds` absorbs transient spikes in practice. Override priority (`equipment` > `company` > `global`) applies per `(rule_type, severity)` pair.
+6. **Manual Offline Telemetry & Streamed CSV Exports:** Included in v1. Global Admins and owning Company Admins can log manual thermometer readings (`POST /v1/equipments/{equipment_id}/telemetry/manual`) when a unit is `offline` (`source = 'manual'`, `recorded_by = user_id`), keeping `equipment.status = 'offline'` until hardware reports again. Permitted users can stream CSV exports for telemetry (`GET /v1/equipments/{equipment_id}/telemetry/export` — capped at **90 days** for `interval=raw` and up to **2 years** for `1hour`/`1day` aggregates) and alerts (`GET /v1/alerts/export`).
+7. **Lean Maintenance Logbook:** Included in v1 as a per-equipment maintenance logbook (`maintenance_records`) that syncs `last_maintenance_date` and `next_maintenance_date` on the Equipment UI. Maintenance-mode alert muting and reminder emails are deferred to Phase 2.
+8. **Alert Notifications, Deduplication & Hysteresis:** In-app dashboard alerts + a **single email** sent to **active Company Admins + permitted active Company Viewers (respecting `UserBranchAccess`)** when an alert transitions to `active`, protected against concurrent worker duplicates by a partial unique index (`uq_open_alert_per_rule`). Open threshold/door alerts require **60 seconds of sustained normal hardware readings** before auto-resolving to prevent flapping email storms.
+9. **Dashboard Live Updates, Default Offline Timeout & Background Workers:** Dashboard uses **30-second HTTP polling** backed by a denormalized `current_data` JSONB snapshot on `equipments` (WebSockets deferred to Phase 2). Backend retains **`Celery` + `Celery Beat` + `Redis`** for asynchronous rule evaluation, periodic 60s offline checks (**10-minute default silence timeout** flips `equipment.status` to `offline` even without a rule; `equipment_offline` alerts/emails require an active rule), async email sending with retry/backoff, JWT JTI revocation blocklist, and `Flask-Limiter` rate limiting.
+10. **Language, Units & Frontend Stack:** v1 is **Brazilian Portuguese (`pt-BR`)** and **Celsius (`°C`) + `kPa`** only, built on **React 19 + Vite + Context API + Axios + Ant Design (`antd` `ptBR`) + Recharts**.
+11. **Standalone Boundary & Auditability:** v1 runs standalone without external ERP/CMMS integrations. Administrative mutations are recorded in PostgreSQL `audit_logs` and exposed to Global Admins via **`GET /v1/audit-logs` and a Global Admin Audit Log UI page**.
+12. **Equipment API Key Security & Non-Destructive Deactivation:** Equipment `X-API-Key` secrets are stored as **`SHA-256` hashes** at rest, returned in plaintext only once upon creation (`POST /v1/equipments`) or rotation (`POST /v1/equipments/{equipment_id}/rotate-api-key`). Deactivating equipment (`DELETE /v1/equipments/{equipment_id}`) sets `is_active = false` (blocking new telemetry with `403` and stopping offline sweeps) without deleting historical telemetry, alerts, or maintenance logs.
 
 ## 10. Non-Functional Requirements
 
 ### 10.1 Performance
-- Dashboard load time < 2 seconds
-- Real-time data refresh within 30 seconds
-- Support 100+ concurrent users
+- Dashboard initial load time < 2 seconds (p95)
+- Dashboard live data refresh <= 30 seconds via HTTP polling (`GET /v1/telemetry/realtime` and `GET /v1/alerts`)
+- Support 100+ concurrent web users and 1,000+ reporting equipment units
 
-### 10.2 Availability
+### 10.2 Availability & Disaster Recovery
 - 99.9% uptime SLA
+- Automated daily PostgreSQL/TimescaleDB backups with point-in-time recovery (PITR) and tested restore procedures
 - Scheduled maintenance windows communicated in advance
 
 ### 10.3 Usability
-- Intuitive interface requiring minimal training
+- Intuitive Brazilian Portuguese (`pt-BR`) interface requiring minimal training
 - Responsive design for desktop and tablet
 - Accessibility compliance (WCAG 2.1 Level AA)
 
-### 10.4 Compliance
-- Data privacy regulations (GDPR, LGPD if applicable)
-- Data retention policies
-- Audit trail for compliance reporting
-
-## 11. API Specification
-
-### 11.1 API Versioning Strategy
-
-**Version Format:**
-- Version included in URL path: `/v1/`, `/v2/`, etc.
-- Current version: `v1`
-
-**Versioning Policy:**
-- **Major version changes** (v1 → v2): Breaking changes to existing endpoints
-  - Changes to request/response structure
-  - Removal of endpoints or fields
-  - Changes to authentication methods
-- **Minor updates within version**: Non-breaking changes
-  - Adding new endpoints
-  - Adding optional fields
-  - Adding new query parameters
-
-**Backwards Compatibility:**
-- Previous major versions supported for minimum 12 months after new version release
-- Deprecation warnings provided 6 months before sunset
-- Version-specific documentation maintained
-
-**Version Detection:**
-- Clients must specify version in URL
-- No default version redirect (missing version returns 404)
-
-### 11.2 Base URL
-```
-Production: https://api.polosanca.com/v1
-Staging: https://api-staging.polosanca.com/v1
-```
-
-### 11.3 Naming Conventions
-
-**Endpoint Naming:**
-- Use canonical plural nouns for collections: `/users`, `/companies`, `/branches`, `/alerts`
-- Use lowercase with hyphens for multi-word resources: `/maintenance-records`
-- Resources are nouns, not verbs
-- Nested resources follow pattern: `/{resource}/{id}/{sub-resource}`
-
-**Response Field Naming:**
-- Use `snake_case` for JSON fields
-- Use descriptive, unambiguous names
-- Boolean fields prefixed with `is_`, `has_`, or `can_` when appropriate
-
-### 11.4 Authentication
-
-**User Authentication:**
-- Method: JWT (JSON Web Tokens)
-- Header: `Authorization: Bearer <token>`
-
-**Equipment Authentication:**
-- Method: API Key
-- Header: `X-API-Key: <equipment_api_key>`
-
-### 11.5 Equipment Data Ingestion
-
-#### POST /v1/equipments/telemetry
-Submit monitoring data from equipment.
-
-**Authentication:** Equipment API Key
-
-**Request Body:**
-```json
-{
-  "serial": "EQ-12345",
-  "temperature": 4.5,
-  "pressure": 120.3,
-  "door": 0,
-  "heater": 1,
-  "compressor": 1,
-  "fan": 1
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Data received successfully",
-  "timestamp": "2025-11-25T10:30:00Z",
-  "record_id": "rec_abc123"
-}
-```
-
-**Error Responses:**
-- `400 Bad Request` - Invalid data format or missing fields
-- `401 Unauthorized` - Invalid API key
-- `404 Not Found` - Equipment serial not found
-- `500 Internal Server Error` - Server processing error
-
-### 11.6 Authentication Endpoints
-
-#### POST /v1/auth/login
-User login.
-
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "secure_password"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "usr_123",
-    "name": "John Doe",
-    "email": "user@example.com",
-    "role": "company_admin",
-    "company_id": "cmp_456"
-  }
-}
-```
-
-#### POST /v1/auth/logout
-User logout.
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Logged out successfully"
-}
-```
-
-#### POST /v1/auth/refresh
-Refresh authentication token.
-
-**Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
-
-### 11.7 User Management
-
-#### GET /v1/users
-List users (filtered by permissions).
-
-**Authentication:** JWT (Company Admin or Global Admin)
-
-**Query Parameters:**
-- `company_id` (optional, Global Admin only)
-- `role` (optional): filter by role
-- `page` (default: 1)
-- `limit` (default: 20)
-
-**Response (200 OK):**
-```json
-{
-  "users": [
-    {
-      "id": "usr_123",
-      "name": "John Doe",
-      "email": "john@example.com",
-      "role": "company_viewer",
-      "company_id": "cmp_456",
-      "branch_access": {
-        "type": "restricted",
-        "branches": ["brn_001", "brn_002"]
-      },
-      "status": "active",
-      "created_at": "2025-01-15T10:00:00Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 45
-  }
-}
-```
-
-#### POST /v1/users/invite
-Invite a new user.
-
-**Authentication:** JWT (Company Admin or Global Admin)
-
-**Request Body:**
-```json
-{
-  "email": "newuser@example.com",
-  "role": "company_viewer",
-  "company_id": "cmp_456",
-  "branch_access": {
-    "type": "restricted",
-    "branches": ["brn_001", "brn_002"]
-  }
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "user_id": "usr_789",
-  "invitation_sent": true
-}
-```
-
-#### PATCH /v1/users/{user_id}
-Update user details or permissions.
-
-**Request Body:**
-```json
-{
-  "role": "company_admin",
-  "branch_access": {
-    "type": "full"
-  }
-}
-```
-
-#### DELETE /v1/users/{user_id}
-Deactivate or remove user.
-
-### 11.8 Company Management
-
-#### GET /v1/companies
-List all companies (Global Admin only).
-
-**Response (200 OK):**
-```json
-{
-  "companies": [
-    {
-      "id": "cmp_456",
-      "name": "Acme Restaurants",
-      "status": "active",
-      "branches_count": 12,
-      "equipment_count": 48,
-      "created_at": "2024-06-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-#### POST /v1/companies
-Create a new company (Global Admin only).
-
-**Request Body:**
-```json
-{
-  "name": "Acme Restaurants",
-  "contact_email": "admin@acme.com",
-  "contact_phone": "+1234567890"
-}
-```
-
-#### GET /v1/companies/{company_id}
-Get company details.
-
-#### PATCH /v1/companies/{company_id}
-Update company information.
-
-### 11.9 Branch Management
-
-#### GET /v1/branches
-List branches for a company.
-
-**Query Parameters:**
-- `company_id` (required for Global Admin, automatic for Company users)
-
-**Response (200 OK):**
-```json
-{
-  "branches": [
-    {
-      "id": "brn_001",
-      "name": "Downtown Branch",
-      "address": "123 Main St, City, State 12345",
-      "company_id": "cmp_456",
-      "equipment_count": 4,
-      "created_at": "2024-06-15T00:00:00Z"
-    }
-  ]
-}
-```
-
-#### POST /v1/branches
-Create a new branch.
-
-**Request Body:**
-```json
-{
-  "company_id": "cmp_456",
-  "name": "Airport Branch",
-  "address": "Airport Terminal, City, State"
-}
-```
-
-#### PATCH /v1/branches/{branch_id}
-Update branch information.
-
-#### DELETE /v1/branches/{branch_id}
-Delete a branch.
-
-### 11.10 Equipment Management
-
-#### GET /v1/equipments
-List equipment (filtered by user permissions).
-
-**Query Parameters:**
-- `company_id` (optional, Global Admin only)
-- `branch_id` (optional)
-- `status` (optional): operational, warning, critical, offline
-- `page` (default: 1)
-- `limit` (default: 20)
-
-**Response (200 OK):**
-```json
-{
-  "equipment": [
-    {
-      "id": "eqp_001",
-      "serial": "EQ-12345",
-      "type": "freezer",
-      "company_id": "cmp_456",
-      "branch_id": "brn_001",
-      "branch_name": "Downtown Branch",
-      "status": "operational",
-      "current_data": {
-        "temperature": 4.5,
-        "pressure": 120.3,
-        "door": "closed",
-        "heater": "on",
-        "compressor": "on",
-        "fan": "on",
-        "last_update": "2025-11-25T10:30:00Z"
-      },
-      "manufacturer": "CoolTech",
-      "model": "CT-500",
-      "installed_at": "2024-08-01T00:00:00Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 48
-  }
-}
-```
-
-#### GET /v1/equipments/{equipment_id}
-Get detailed equipment information.
-
-#### POST /v1/equipments
-Register new equipment.
-
-**Request Body:**
-```json
-{
-  "serial": "EQ-12345",
-  "type": "freezer",
-  "branch_id": "brn_001",
-  "manufacturer": "CoolTech",
-  "model": "CT-500",
-  "api_key": "generated_or_provided"
-}
-```
-
-#### PATCH /v1/equipments/{equipment_id}
-Update equipment information.
-
-#### DELETE /v1/equipments/{equipment_id}
-Deactivate equipment.
-
-### 11.11 Monitoring Data
-
-#### GET /v1/equipments/{equipment_id}/telemetry
-Get historical telemetry data for equipment.
-
-**Query Parameters:**
-- `start_date` (ISO 8601 format)
-- `end_date` (ISO 8601 format)
-- `interval` (optional): raw, 5min, 1hour, 1day (aggregation)
-- `fields` (optional): temperature,pressure,door (comma-separated)
-
-**Response (200 OK):**
-```json
-{
-  "equipment_id": "eqp_001",
-  "serial": "EQ-12345",
-  "data": [
-    {
-      "timestamp": "2025-11-25T10:00:00Z",
-      "temperature": 4.2,
-      "pressure": 119.8,
-      "door": 0,
-      "heater": 1,
-      "compressor": 1,
-      "fan": 1
-    },
-    {
-      "timestamp": "2025-11-25T10:15:00Z",
-      "temperature": 4.5,
-      "pressure": 120.3,
-      "door": 0,
-      "heater": 1,
-      "compressor": 1,
-      "fan": 1
-    }
-  ],
-  "count": 96
-}
-```
-
-#### GET /v1/telemetry/realtime
-Get real-time data for all accessible equipment.
-
-**Query Parameters:**
-- `branch_id` (optional)
-- `equipment_ids` (optional): comma-separated list
-
-**Response (200 OK):**
-```json
-{
-  "equipments": [
-    {
-      "equipment_id": "eqp_001",
-      "serial": "EQ-12345",
-      "branch_id": "brn_001",
-      "temperature": 4.5,
-      "pressure": 120.3,
-      "door": "closed",
-      "heater": "on",
-      "compressor": "on",
-      "fan": "on",
-      "status": "operational",
-      "last_update": "2025-11-25T10:30:00Z"
-    }
-  ]
-}
-```
-
-### 11.12 Alerts
-
-#### GET /v1/alerts
-List alerts (filtered by user permissions).
-
-**Query Parameters:**
-- `equipment_id` (optional)
-- `branch_id` (optional)
-- `status` (optional): active, acknowledged, resolved
-- `severity` (optional): warning, critical
-- `start_date` (optional)
-- `end_date` (optional)
-
-**Response (200 OK):**
-```json
-{
-  "alerts": [
-    {
-      "id": "alt_001",
-      "equipment_id": "eqp_001",
-      "serial": "EQ-12345",
-      "branch_id": "brn_001",
-      "type": "temperature_high",
-      "severity": "critical",
-      "message": "Temperature exceeded threshold: 12.5°C (max: 8°C)",
-      "status": "active",
-      "created_at": "2025-11-25T10:35:00Z",
-      "acknowledged_at": null,
-      "acknowledged_by": null
-    }
-  ]
-}
-```
-
-#### PATCH /v1/alerts/{alert_id}/acknowledge
-Acknowledge an alert.
-
-**Request Body:**
-```json
-{
-  "notes": "Technician dispatched to location"
-}
-```
-
-#### GET /v1/alerts/statistics
-Get alert statistics dashboard data.
-
-**Response (200 OK):**
-```json
-{
-  "total_active": 12,
-  "by_severity": {
-    "warning": 8,
-    "critical": 4
-  },
-  "by_type": {
-    "temperature_high": 5,
-    "temperature_low": 2,
-    "equipment_offline": 3,
-    "door_open": 2
-  }
-}
-```
-
-### 11.13 Alert Rules
-
-#### GET /v1/alert-rules
-List all alert rules (Global Admin only).
-
-**Query Parameters:**
-- `scope` (optional): global, company, equipment
-- `company_id` (optional): filter by company
-- `equipment_id` (optional): filter by equipment
-- `rule_type` (optional): temperature_high, temperature_low, etc.
-- `is_active` (optional): true/false
-
-**Response (200 OK):**
-```json
-{
-  "alert_rules": [
-    {
-      "id": "rule_001",
-      "name": "Freezer High Temperature Alert",
-      "description": "Alert when freezer exceeds safe temperature",
-      "rule_type": "temperature_high",
-      "threshold_value": 8.0,
-      "comparison_operator": ">",
-      "duration_seconds": 300,
-      "severity": "critical",
-      "message_template": "Temperature exceeded {{threshold}}°C: Current {{value}}°C",
-      "scope": "company",
-      "scope_id": "cmp_456",
-      "is_active": true,
-      "created_by": "usr_global_admin",
-      "created_at": "2025-01-15T00:00:00Z",
-      "updated_at": "2025-03-10T00:00:00Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 15
-  }
-}
-```
-
-#### POST /v1/alert-rules
-Create a new alert rule (Global Admin only).
-
-**Request Body:**
-```json
-{
-  "name": "Freezer High Temperature Alert",
-  "description": "Alert when freezer exceeds safe temperature",
-  "rule_type": "temperature_high",
-  "threshold_value": 8.0,
-  "comparison_operator": ">",
-  "duration_seconds": 300,
-  "severity": "critical",
-  "message_template": "Temperature exceeded {{threshold}}°C: Current {{value}}°C",
-  "scope": "company",
-  "scope_id": "cmp_456",
-  "is_active": true
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "id": "rule_001",
-  "message": "Alert rule created successfully"
-}
-```
-
-#### GET /v1/alert-rules/{rule_id}
-Get specific alert rule details (Global Admin only).
-
-#### PATCH /v1/alert-rules/{rule_id}
-Update an alert rule (Global Admin only).
-
-**Request Body:**
-```json
-{
-  "threshold_value": 10.0,
-  "is_active": false
-}
-```
-
-#### DELETE /v1/alert-rules/{rule_id}
-Delete an alert rule (Global Admin only).
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Alert rule deleted successfully",
-  "affected_equipments": 24
-}
-```
-
-#### GET /v1/equipments/{equipment_id}/alert-rules
-Get all alert rules applicable to specific equipment.
-
-**Response (200 OK):**
-```json
-{
-  "equipment_id": "eqp_001",
-  "applicable_rules": [
-    {
-      "id": "rule_003",
-      "name": "Equipment-Specific Rule",
-      "rule_type": "temperature_high",
-      "threshold_value": 7.0,
-      "severity": "critical",
-      "scope": "equipment",
-      "priority": 1
-    },
-    {
-      "id": "rule_001",
-      "name": "Company Rule",
-      "rule_type": "temperature_high",
-      "threshold_value": 8.0,
-      "severity": "critical",
-      "scope": "company",
-      "priority": 2
-    },
-    {
-      "id": "rule_global",
-      "name": "Global Default",
-      "rule_type": "temperature_high",
-      "threshold_value": 10.0,
-      "severity": "warning",
-      "scope": "global",
-      "priority": 3
-    }
-  ]
-}
-```
-
-#### GET /v1/alert-rules/{rule_id}/statistics
-Get statistics for how often a rule has triggered.
-
-**Response (200 OK):**
-```json
-{
-  "rule_id": "rule_001",
-  "total_triggers": 145,
-  "triggers_last_30_days": 23,
-  "affected_equipments": 12,
-  "avg_triggers_per_equipment": 12.1
-}
-```
-
-### 11.14 Maintenance
-
-#### GET /v1/equipments/{equipment_id}/maintenance-records
-Get maintenance history for equipment.
-
-#### POST /v1/equipments/{equipment_id}/maintenance-records
-Log maintenance activity.
-
-**Request Body:**
-```json
-{
-  "type": "routine_inspection",
-  "description": "Monthly maintenance check",
-  "performed_by": "John Smith",
-  "notes": "All components functioning normally",
-  "next_maintenance_date": "2025-12-25"
-}
-```
-
-### 11.15 Common Response Codes
-
-- `200 OK` - Request successful
-- `201 Created` - Resource created successfully
-- `204 No Content` - Request successful, no content to return
-- `400 Bad Request` - Invalid request format or parameters
-- `401 Unauthorized` - Authentication required or failed
-- `403 Forbidden` - Insufficient permissions
-- `404 Not Found` - Resource not found
-- `422 Unprocessable Entity` - Validation errors
-- `429 Too Many Requests` - Rate limit exceeded
-- `500 Internal Server Error` - Server error
-
-### 11.16 Rate Limiting
-
-- **Equipment telemetry**: 1 request per minute per equipment
-- **User API calls**: 100 requests per minute per user
-- **Global Admin**: 1000 requests per minute
-
-### 11.17 Webhooks (Future)
-
-Companies can register webhook URLs to receive real-time notifications:
-- Equipment goes offline
-- Alert triggered
-- Maintenance due
-- Threshold exceeded
+### 10.4 Compliance (LGPD & Auditability)
+- **LGPD compliance (mandatory for Brazilian operations)** and GDPR readiness:
+  - Explicit legal basis and privacy notice for user account PII (name, email, IP address in audit logs)
+  - **Soft-deactivation & PII anonymization:** Deactivating a user sets `status = inactive` and revokes active tokens; permanent erasure requests anonymize personal identifiers (`name`, `email`) while preserving user UUID references on historical alert acknowledgments, maintenance logs, and `audit_logs`
+  - Tenant offboarding procedure for exporting or purging company data upon contract termination
+- Immutable audit trail (`audit_logs`) for all administrative, authentication, and permission changes, inspectable by Global Admins via `GET /v1/audit-logs`
+
+## 11. API Overview & Contract Reference
+
+> **Single Source of Truth:** Exact request/response schemas, query parameters, authentication headers, and HTTP status codes are defined canonically in [`openapi.yaml`](./openapi.yaml) (viewable via [`api-docs.html`](./api-docs.html)). Do not duplicate JSON wire payloads in this document.
+
+### 11.1 Versioning, Naming & Rate Limits
+
+- **Base Path & Versioning:** All routes are prefixed with `/v1/` (breaking changes increment major version with a 12-month deprecation window; missing version prefix returns `404`).
+- **Naming Conventions:** Plural lowercase hyphenated nouns for collections (`/users`, `/companies`, `/branches`, `/equipments`, `/alerts`, `/alert-rules`, `/maintenance-records`, `/audit-logs`) and `snake_case` JSON keys.
+- **Authentication:**
+  - **Users:** `Authorization: Bearer <jwt>` (`1h` access token; `30d` refresh token on `POST /v1/auth/refresh`; Redis JTI blocklist on logout/deactivation).
+  - **Equipment Hardware:** `X-API-Key: <equipment_api_key>` (verified in constant time against stored `SHA-256` hash).
+- **Rate Limits (`Flask-Limiter` + Redis):**
+  - `POST /v1/auth/login`, `POST /v1/auth/forgot-password`: 10 req/min per IP
+  - `POST /v1/equipments/telemetry`: 12 req/min per equipment
+  - Authenticated user calls: 100 req/min per user (`1000` req/min for Global Admin)
+
+### 11.2 v1 Endpoint Index
+
+| Domain | Method & Path | Auth / Permitted Roles | Summary |
+| :--- | :--- | :--- | :--- |
+| **Auth & Profile** | `POST /v1/auth/login` | Public | Authenticate active user; returns `access_token`, `refresh_token`, `user` |
+| | `POST /v1/auth/refresh` | JWT Refresh | Issue new `access_token` |
+| | `POST /v1/auth/logout` | JWT (All) | Revoke current token JTI in Redis |
+| | `GET, PATCH /v1/auth/me` | JWT (All) | View own profile/branch scope; update own `name` |
+| | `POST /v1/auth/change-password` | JWT (All) | Change own password (`current_password` + `new_password`) |
+| | `POST /v1/auth/forgot-password` | Public | Send 1-hour password reset email (enumeration-safe `200`) |
+| | `POST /v1/auth/reset-password` | Public (Reset Token) | Redeem 1-hour reset token and set new password |
+| **Users** | `GET /v1/users` | Global / Company Admin | List users (scoped to own company for Company Admin) |
+| | `POST /v1/users/invite` | Global / Company Admin | Create `pending` user and send 7-day invitation email |
+| | `POST /v1/users/accept-invitation` | Public (Invite Token) | Redeem 7-day invite token, set password, activate account |
+| | `POST /v1/users/{user_id}/resend-invitation` | Global / Company Admin | Issue fresh 7-day token and resend invite |
+| | `GET, PATCH, DELETE /v1/users/{user_id}` | Global / Company Admin | View, update role/branches/status, or soft-deactivate/anonymize user |
+| **Companies** | `GET, POST /v1/companies` | Global Admin | List all companies; create new company |
+| | `GET /v1/companies/{company_id}` | Global Admin / Own Company | View company profile |
+| | `PATCH /v1/companies/{company_id}` | Global / Own Company Admin | Update company profile (`status` changes Global Admin only) |
+| **Branches** | `GET /v1/branches`, `GET /v1/branches/{branch_id}` | JWT (Scoped) | List/view branches (filtered by `UserBranchAccess` for restricted viewers) |
+| | `POST, PATCH, DELETE /v1/branches*` | Global / Own Company Admin | Create, update, or delete branch (`409` if equipment or single-branch viewer attached) |
+| **Equipment** | `GET /v1/equipments`, `GET /v1/equipments/{equipment_id}` | JWT (Scoped) | List (`"equipment"` key) or view equipment, status, and maintenance dates |
+| | `POST /v1/equipments` | Global / Own Company Admin | Register equipment; returns plaintext `api_key` once (stores `SHA-256` hash) |
+| | `PATCH, DELETE /v1/equipments/{equipment_id}` | Global / Own Company Admin | Update metadata/branch or deactivate equipment |
+| | `POST /v1/equipments/{equipment_id}/rotate-api-key` | Global / Own Company Admin | Rotate equipment API key and return new plaintext key once |
+| **Telemetry** | `POST /v1/equipments/telemetry` | `X-API-Key` | Ingest 7-metric hardware reading (JSON or form-urlencoded; optional `Idempotency-Key` / `request_id` deduplication); returns `200` |
+| | `POST /v1/equipments/{equipment_id}/telemetry/manual` | Global / Own Company Admin | Log manual temperature (`source="manual"`) while unit is `offline` (`409` if online); returns `201` with `record_id` |
+| | `GET /v1/equipments/{equipment_id}/telemetry` | JWT (Scoped) | Query historical telemetry (`"count"`, `"data"`, `"next_page_token"`, `"pagination"`) |
+| | `GET /v1/equipments/{equipment_id}/telemetry/export` | JWT (Scoped) | Export historical telemetry as `text/csv` |
+| | `GET /v1/telemetry/realtime` | JWT (Scoped) | Latest equipment snapshot for 30s dashboard HTTP polling |
+| **Alerts** | `GET /v1/alerts`, `GET /v1/alerts/{alert_id}` | JWT (Scoped) | List or inspect alerts |
+| | `GET /v1/alerts/statistics`, `GET /v1/alerts/export` | JWT (Scoped) | Active alert counts or `text/csv` alert export |
+| | `POST /v1/alerts/{alert_id}/acknowledge`, `.../resolve` | Global / Own Company Admin | Acknowledge (with notes) or manually resolve alert |
+| **Alert Rules** | `GET /v1/alert-rules`, `GET /v1/alert-rules/{rule_id}` | Global / Company Admin | List/view rules (Company Admin read-only for `global` + own scopes) |
+| | `POST, PATCH, DELETE /v1/alert-rules*` | Global Admin | Create (`201`), update (`200`), or delete (`204`) generic alert rules |
+| | `GET /v1/alert-rules/{rule_id}/statistics` | Global Admin | Rule trigger statistics |
+| | `GET /v1/equipments/{equipment_id}/alert-rules` | JWT (Scoped) | Applicable rules ordered by `(rule_type, severity)` priority |
+| **Maintenance** | `GET /v1/equipments/{equipment_id}/maintenance-records` | JWT (Scoped) | Paginated maintenance logbook for an equipment unit |
+| | `POST /v1/equipments/{equipment_id}/maintenance-records` | Global / Own Company Admin | Log maintenance record and sync equipment maintenance dates |
+| | `GET /v1/maintenance-records/{record_id}` | JWT (Scoped) | View specific maintenance record |
+| | `PATCH, DELETE /v1/maintenance-records/{record_id}` | Global / Own Company Admin | Update or delete maintenance record |
+| **Audit Logs** | `GET /v1/audit-logs` | Global Admin | Query immutable administrative audit trail (keyset `page_token` + offset pagination) |

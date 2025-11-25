@@ -1,0 +1,49 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    "__pycache__",
+    "frontend",
+    "instance",
+    "migrations",
+    "venv",
+]
+
+[tool.ruff.lint]
+# E/F: pycodestyle & pyflakes | I: isort | UP: pyupgrade | B: flake8-bugbear | S: bandit security | SIM: simplify | C901: McCabe complexity | ANN401/TID251: ban Any & cast
+select = ["E", "F", "I", "UP", "B", "S", "SIM", "C901", "ANN401", "TID251"]
+ignore = [
+    "E501", # handled by formatter where appropriate
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.Any".msg = "Explicit Any is banned; use concrete types, protocols, or TypedDicts."
+"typing.cast".msg = "typing.cast is banned; narrow types with isinstance() or proper type annotations."
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"app/__init__.py" = ["E402"]
+"tests/**/*.py" = ["C901", "S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+strict_equality = true
+warn_unreachable = true
+warn_return_any = true
+exclude = "(^migrations/|^venv/|^frontend/)"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"

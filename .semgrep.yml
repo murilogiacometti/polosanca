@@ -1,0 +1,80 @@
+rules:
+  - id: polosanca-email-html-fstring-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Unescaped f-string assigned to email HTML body. Escape all interpolated
+      values with html.escape(..., quote=True) or render via an autoescaping
+      template helper to prevent HTML injection in outbound emails.
+    pattern-either:
+      - pattern: |
+          $HTML = f"..."
+          ...
+          $MSG.html = $HTML
+      - pattern: $MSG.html = f"..."
+
+  - id: polosanca-plaintext-token-logging
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Sensitive token, password, or secret interpolated into application logs.
+      Never log plaintext credentials, reset tokens, invitation tokens, or API keys.
+    patterns:
+      - pattern-either:
+          - pattern: logger.$LEVEL(f"...{$VAR}...")
+          - pattern: current_app.logger.$LEVEL(f"...{$VAR}...")
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(token|secret|password|api_key).*
+
+  - id: polosanca-csv-writer-without-sanitization
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Direct csv.writer.writerow() call detected outside the centralized
+      format_csv_row() sanitizer. Use format_csv_row() so cells starting with
+      =, +, -, @, tab, or CR are neutralized against CSV formula injection.
+    patterns:
+      - pattern: $WRITER.writerow($VALUES)
+      - pattern-not-inside: |
+          def format_csv_row(...):
+              ...
+
+  - id: polosanca-unrestricted-vformat
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Avoid string.Formatter().vformat() on user- or admin-supplied templates;
+      it allows arbitrary format specifiers (memory DoS) and attribute traversal.
+      Use a strict allowlisted regex placeholder substitution instead.
+    pattern-either:
+      - pattern: string.Formatter().vformat(...)
+      - pattern: Formatter().vformat(...)
+
+  - id: polosanca-untrusted-x-forwarded-for
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Do not parse X-Forwarded-For manually from request.headers; any client can
+      spoof it. Configure Werkzeug ProxyFix for trusted proxy hops and read
+      request.remote_addr instead.
+    pattern-either:
+      - pattern: request.headers.get("X-Forwarded-For", ...)
+      - pattern: request.headers["X-Forwarded-For"]
+
+  - id: polosanca-raw-apikey-rate-limit-key
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Do not embed raw caller-supplied X-API-Key values in rate-limit keys.
+      Unverified keys allow rate-limit bypass by rotating random headers and
+      store raw secrets in Redis key names.
+    pattern: return f"apikey:{$VAL}"
+
+  - id: polosanca-wildcard-cors-origin
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Avoid defaulting CORS_ORIGINS to "*". Explicit allowlisted origins
+      prevent overly permissive cross-origin access.
+    pattern: os.environ.get("CORS_ORIGINS", "*")

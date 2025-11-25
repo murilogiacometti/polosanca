@@ -1,348 +1,152 @@
-# Polo Sanca - Refrigeration Equipment Monitoring System
+# Polo Sanca — Refrigeration Equipment Monitoring System
 
-A multi-tenant refrigeration equipment monitoring system built with Flask, PostgreSQL, and TimescaleDB.
+Multi-tenant refrigeration equipment monitoring platform built with **Flask**, **PostgreSQL + TimescaleDB**, **Celery + Redis**, and **React 19 + Vite**.
 
-## Features
+## Documentation & Source-of-Truth Map
 
-- Multi-tenant architecture with company and branch management
-- Role-based access control (Global Admins, Company Admins, Company Viewers)
-- Branch-level access restrictions for viewers
-- Equipment registration and monitoring
-- Real-time telemetry data ingestion
-- Configurable alert rules with threshold-based triggers
-- Alert acknowledgment workflow
-- Maintenance record tracking
-- JWT-based authentication
-- RESTful API with versioning
-- Real-time updates via WebSockets (SocketIO)
+Each concern in this repository lives in **one canonical place** to prevent drift:
 
-## Tech Stack
+| Concern | Single Source of Truth | Purpose |
+| :--- | :--- | :--- |
+| **Product & Domain Rules** | [`PRD.md`](./PRD.md) | Roles/RBAC matrix, entity semantics, user flows, resolved v1 decisions, and Phase 2 roadmap |
+| **API Wire Contract** | [`openapi.yaml`](./openapi.yaml) | Request/response schemas, query parameters, authentication headers, and HTTP status codes |
+| **Database Schema** | [`app/models/`](./app/models/__init__.py) + [`migrations/`](./migrations) | SQLAlchemy models and Alembic migrations (including TimescaleDB hypertable & policies) |
+| **Setup, Run & Testing** | [`README.md`](./README.md) | Local installation, backend/worker/frontend startup, Swagger UI, and `pytest` execution |
+| **Active v1 Backlog** | [`TODO.md`](./TODO.md) | Prioritized engineering checklist for completing the v1 MVP |
 
-- **Backend:** Flask 3.0, SQLAlchemy, Flask-JWT-Extended
+## Tech Stack (v1 MVP)
+
+- **Backend:** Python 3.10+, Flask 3.x, SQLAlchemy 2.x, Flask-Migrate (Alembic), Flask-JWT-Extended, Marshmallow, Flask-Limiter, Flask-Mail
 - **Database:** PostgreSQL 14+ with TimescaleDB extension
-- **Task Queue:** Celery with Redis
-- **Real-time:** Flask-SocketIO with Redis message queue
+- **Background Jobs & Cache:** Celery + Celery Beat + Redis (rule evaluation, 60s offline heartbeat sweep, async alert email dispatch, JWT JTI blocklist, rate limiting)
+- **Frontend:** React 19, Vite, Ant Design (`antd` `pt-BR`), Recharts, Axios (30-second HTTP polling)
 
 ## Project Structure
 
-```
+```text
 polosanca/
 ├── app/
-│   ├── __init__.py          # Application factory
-│   ├── models/              # SQLAlchemy models
-│   │   └── __init__.py
-│   ├── routes/              # API blueprints
-│   │   ├── auth.py          # Authentication endpoints
-│   │   ├── companies.py     # Company management
-│   │   ├── branches.py      # Branch management
-│   │   ├── users.py         # User management
-│   │   ├── equipments.py    # Equipment management
-│   │   ├── telemetry.py     # Telemetry data
-│   │   ├── alerts.py        # Alert management
-│   │   ├── alert_rules.py   # Alert rule configuration
-│   │   └── maintenance.py   # Maintenance records
-│   ├── services/            # Business logic (TODO)
-│   └── utils/               # Helper functions (TODO)
-├── migrations/              # Alembic database migrations
-├── tests/                   # Test files (TODO)
-├── config.py                # Configuration classes
-├── run.py                   # Application entry point
+│   ├── __init__.py          # Flask application factory
+│   ├── models/              # SQLAlchemy models (single schema source)
+│   ├── routes/              # REST API blueprints (/v1/*)
+│   ├── services/            # Celery tasks & business logic
+│   └── utils/               # Helpers (email, auth/RBAC, hashing)
+├── frontend/                # React 19 + Vite SPA (pt-BR)
+├── migrations/              # Alembic database migrations (+ TimescaleDB DDL)
+├── tests/                   # End-to-end API flow tests (pytest)
+├── api-docs.html            # Interactive Swagger UI viewer for openapi.yaml
+├── config.py                # Environment configuration classes
+├── init_db.py               # Local development seed script
+├── openapi.yaml             # Canonical OpenAPI 3.0 contract
+├── PRD.md                   # Product Requirements Document
 ├── requirements.txt         # Python dependencies
-├── .env.example             # Environment variables template
-├── schema.sql               # Database schema
-├── openapi.yaml             # API specification
-└── README.md                # This file
+├── run.py                   # Flask development entry point
+└── TODO.md                  # Active v1 implementation backlog
 ```
 
-## Prerequisites
+## Local Setup
+
+### Prerequisites
 
 - Python 3.10+
+- Node.js 18+ & npm
 - PostgreSQL 14+ with TimescaleDB extension
 - Redis 6+
 
-## Installation
+### 1. Database & Redis Setup
 
-### 1. Clone the repository
-
+**macOS (Homebrew):**
 ```bash
-git clone <repository-url>
-cd polosanca
-```
-
-### 2. Create virtual environment
-
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Install PostgreSQL and TimescaleDB
-
-**macOS (using Homebrew):**
-```bash
-brew install postgresql@14
-brew install timescaledb
-
-# Initialize TimescaleDB
+brew install postgresql@14 timescaledb redis
 timescaledb-tune --quiet --yes
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install postgresql-14 postgresql-14-timescaledb
-
-# Enable TimescaleDB
-echo "shared_preload_libraries = 'timescaledb'" | sudo tee -a /etc/postgresql/14/main/postgresql.conf
-sudo systemctl restart postgresql
-```
-
-### 5. Install and start Redis
-
-**macOS:**
-```bash
-brew install redis
+brew services start postgresql@14
 brew services start redis
 ```
 
-**Ubuntu/Debian:**
+Create the development and test databases with the TimescaleDB extension enabled:
 ```bash
-sudo apt install redis-server
-sudo systemctl start redis
+psql postgres -c "CREATE DATABASE polosanca;"
+psql postgres -c "CREATE DATABASE polosanca_test;"
+psql polosanca -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+psql polosanca_test -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 ```
 
-### 6. Create database
+### 2. Backend Setup
 
 ```bash
-# Connect to PostgreSQL
-psql postgres
-
-# Create database and user
-CREATE DATABASE polosanca;
-CREATE USER polosanca_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE polosanca TO polosanca_user;
-
-# Connect to the new database
-\c polosanca
-
-# Enable TimescaleDB extension
-CREATE EXTENSION IF NOT EXISTS timescaledb;
-
-# Exit psql
-\q
-```
-
-### 7. Apply database schema
-
-```bash
-psql -U polosanca_user -d polosanca -f schema.sql
-```
-
-### 8. Configure environment variables
-
-```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
-Update `.env` with your settings:
-```env
-DATABASE_URL=postgresql://polosanca_user:your_password@localhost:5432/polosanca
-SECRET_KEY=<generate-secure-key>
-JWT_SECRET_KEY=<generate-secure-key>
-```
-
-Generate secure keys:
+Configure `.env` with your local `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, and `JWT_SECRET_KEY`, then run migrations (and optional local seed data):
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-### 9. Initialize database migrations (optional)
-
-```bash
-flask db init
-flask db migrate -m "Initial migration"
 flask db upgrade
+python init_db.py   # Optional: seeds demo company, branch, and test users
+```
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
 ```
 
 ## Running the Application
 
-### Development Mode
+Run the stack across separate terminals:
 
 ```bash
+# 1. Flask API (http://localhost:5000)
+source venv/bin/activate
 python run.py
+
+# 2. Celery Worker & Beat Scheduler
+source venv/bin/activate
+celery -A app.celery worker --beat --loglevel=info
+
+# 3. React Frontend (http://localhost:5173)
+cd frontend
+npm run dev
 ```
 
-The API will be available at: `http://localhost:5000`
-
-### Production Mode
-
+**Production WSGI:**
 ```bash
-# Set environment
-export FLASK_ENV=production
-
-# Run with Gunicorn
-gunicorn -w 4 -k gevent --bind 0.0.0.0:5000 "app:create_app()"
+gunicorn -w 4 --bind 0.0.0.0:5000 "app:create_app('production')"
 ```
 
-### Running Celery Worker
+## Interactive API Documentation
 
-In a separate terminal:
-```bash
-celery -A app.celery worker --loglevel=info
-```
-
-## API Documentation
-
-The API follows RESTful conventions with `/v1/` prefix for all endpoints.
-
-Full API documentation is available in `openapi.yaml` (OpenAPI 3.0 format).
-
-To view the interactive API documentation:
+View [`openapi.yaml`](./openapi.yaml) in Swagger UI locally:
 ```bash
 python3 -m http.server 8000
-# Open http://localhost:8000/api-docs.html in your browser
+# Open http://localhost:8000/api-docs.html
 ```
 
-### Authentication
+## Running Tests
 
-Most endpoints require JWT authentication. Include the token in the `Authorization` header:
+End-to-end API flow tests live in [`tests/`](./tests) and map directly to the user flows in [`PRD.md`](./PRD.md) Section 5 (`test_01_auth_flow.py`, `test_02_company_onboarding_flow.py`, `test_03_equipment_registration_flow.py`, `test_05_user_invitation_flow.py`, `test_06_branch_access_restriction_flow.py`, `test_09_equipment_data_ingestion_flow.py`, `test_10_branch_management_flow.py`).
 
-```
-Authorization: Bearer <your-jwt-token>
-```
+Each test initializes a clean state in `TEST_DATABASE_URL` via [`tests/conftest.py`](./tests/conftest.py):
 
-### Equipment Telemetry
-
-Equipment uses API key authentication for telemetry submission:
-
-```
-X-API-Key: <equipment-api-key>
-```
-
-### Example Requests
-
-**Login:**
 ```bash
-curl -X POST http://localhost:5000/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@polosanca.com", "password": "password"}'
+source venv/bin/activate
+export TEST_DATABASE_URL="postgresql://localhost:5432/polosanca_test"
+
+# Run full suite
+pytest tests/
+
+# Run with coverage
+pytest --cov=app tests/
+
+# Run a single flow file
+pytest -v tests/test_09_equipment_data_ingestion_flow.py
 ```
 
-**Submit Telemetry:**
-```bash
-curl -X POST http://localhost:5000/v1/equipments/telemetry \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <equipment-api-key>" \
-  -d '{
-    "serial": "EQ-001",
-    "temperature": -18.5,
-    "pressure": 150.2,
-    "door": 0,
-    "heater": 1,
-    "compressor": 1,
-    "fan": 1
-  }'
-```
-
-**Get Alerts:**
-```bash
-curl -X GET "http://localhost:5000/v1/alerts?status=active" \
-  -H "Authorization: Bearer <jwt-token>"
-```
-
-## Development
-
-### Code Style
-
-This project follows PEP 8 style guide. Use Black for formatting:
+## Code Formatting
 
 ```bash
 black .
+flake8
 ```
-
-### Testing
-
-```bash
-pytest
-pytest --cov=app tests/
-```
-
-### Database Migrations
-
-After modifying models:
-
-```bash
-flask db migrate -m "Description of changes"
-flask db upgrade
-```
-
-## Project Status
-
-**Current Status:** Backend API initialized
-
-**Completed:**
-- ✅ Database schema design
-- ✅ SQLAlchemy models
-- ✅ Flask application structure
-- ✅ Authentication system
-- ✅ Basic CRUD endpoints
-- ✅ API documentation
-
-**TODO:**
-- ⏳ Alert evaluation service (Celery tasks)
-- ⏳ WebSocket real-time updates
-- ⏳ Input validation and error handling
-- ⏳ Unit and integration tests
-- ⏳ Frontend application (React + Ant Design)
-- ⏳ Deployment configuration
-- ⏳ CI/CD pipeline
-
-## Architecture
-
-### User Roles
-
-1. **Global Admin** (Polo Sanca)
-   - Manage all companies, branches, and users
-   - Configure alert rules
-   - Full system access
-
-2. **Company Admin**
-   - Manage their company's branches and users
-   - View all equipment and alerts for their company
-   - Configure branch-level permissions
-
-3. **Company Viewer**
-   - View equipment and alerts
-   - Can be restricted to specific branches
-   - Read-only access
-
-### Alert System
-
-Alert rules can be configured at three scopes:
-- **Global:** Apply to all equipment
-- **Company:** Apply to all equipment in a company
-- **Equipment:** Apply to specific equipment
-
-Rules are evaluated based on priority: Equipment > Company > Global
-
-### Time-Series Data
-
-Telemetry data is stored in a TimescaleDB hypertable with:
-- Automatic partitioning by time (1-day chunks)
-- Compression for data older than 7 days
-- Retention policy (2 years)
-- Continuous aggregates for hourly/daily statistics
-
-## License
-
-[Add your license here]
-
-## Support
-
-For questions or issues, please contact [support@polosanca.com](mailto:support@polosanca.com)

@@ -2,109 +2,319 @@
 Branches Routes
 CRUD operations for branches
 """
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+
+import uuid
+
+from flask import Blueprint, Response, jsonify, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql.selectable import Subquery
 
 from app import db
-from app.models import Branch, User, UserRole
+from app.models import (
+    Branch,
+    BranchAccessType,
+    Equipment,
+    User,
+    UserBranchAccess,
+    UserRole,
+)
+from app.schemas import BranchCreateSchema, BranchUpdatePayload, BranchUpdateSchema, validate_request_schema
+from app.utils import clamp_pagination, get_allowed_branch_ids, record_audit_log
 
-branches_bp = Blueprint('branches', __name__)
-
-
-@branches_bp.route('', methods=['GET'])
-@jwt_required()
-def get_branches():
-    """Get branches with pagination"""
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 20, type=int)
-    company_id = request.args.get('company_id')
-
-    query = Branch.query
-
-    # Filter by company based on user role
-    if user.role == UserRole.GLOBAL_ADMIN:
-        if company_id:
-            query = query.filter_by(company_id=company_id)
-    else:
-        query = query.filter_by(company_id=user.company_id)
-
-    branches = query.paginate(page=page, per_page=limit, error_out=False)
-
-    return jsonify({
-        'branches': [b.to_dict() for b in branches.items],
-        'pagination': {
-            'page': page,
-            'limit': limit,
-            'total': branches.total,
-            'total_pages': branches.pages
-        }
-    }), 200
+branches_bp = Blueprint("branches", __name__)
+_branch_create_schema = BranchCreateSchema()
+_branch_update_schema = BranchUpdateSchema()
 
 
-@branches_bp.route('/<branch_id>', methods=['GET'])
-@jwt_required()
-def get_branch(branch_id):
-    """Get a specific branch"""
-    branch = Branch.query.get(branch_id)
-    if not branch:
-        return jsonify({'error': 'Branch not found'}), 404
-
-    return jsonify(branch.to_dict()), 200
-
-
-@branches_bp.route('', methods=['POST'])
-@jwt_required()
-def create_branch():
-    """Create a new branch"""
-    data = request.get_json()
-
-    if not data or not data.get('name') or not data.get('company_id'):
-        return jsonify({'error': 'Name and company_id are required'}), 400
-
-    branch = Branch(
-        company_id=data['company_id'],
-        name=data['name'],
-        address=data.get('address', '')
+def _branch_equipment_count_subquery() -> Subquery:
+    """Grouped subquery for active equipment count per branch (prevents N+1)."""
+    return (
+        db.session.query(
+            Equipment.branch_id.label("branch_id"),
+            func.count(Equipment.id).label("equipment_count"),
+        )
+        .filter(Equipment.is_active.is_(True))
+        .group_by(Equipment.branch_id)
+        .subquery()
     )
 
-    db.session.add(branch)
-    db.session.commit()
 
-    return jsonify(branch.to_dict()), 201
-
-
-@branches_bp.route('/<branch_id>', methods=['PATCH'])
+@branches_bp.route("", methods=["GET"])
 @jwt_required()
-def update_branch(branch_id):
-    """Update a branch"""
-    branch = Branch.query.get(branch_id)
-    if not branch:
-        return jsonify({'error': 'Branch not found'}), 404
+def get_branches() -> tuple[Response, int]:
+    """Get branches with pagination, viewer branch scoping, and single-query equipment_count."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-    data = request.get_json()
+    page, limit = clamp_pagination(
+        request.args.get("page", 1, type=int),
+        request.args.get("limit", 20, type=int),
+    )
+    company_id = request.args.get("company_id")
 
-    if 'name' in data:
-        branch.name = data['name']
-    if 'address' in data:
-        branch.address = data['address']
+    eq_sq = _branch_equipment_count_subquery()
+    query = db.session.query(
+        Branch,
+        func.coalesce(eq_sq.c.equipment_count, 0).label("equipment_count"),
+    ).outerjoin(eq_sq, Branch.id == eq_sq.c.branch_id)
 
-    db.session.commit()
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if company_id:
+            query = query.filter(Branch.company_id == company_id)
+    else:
+        query = query.filter(Branch.company_id == user.company_id)
+        allowed_branches = get_allowed_branch_ids(user)
+        if allowed_branches is not None:
+            query = query.filter(Branch.id.in_(allowed_branches))
 
-    return jsonify(branch.to_dict()), 200
+    query = query.order_by(Branch.created_at.asc())
+    total = query.count()
+    items = query.offset((page - 1) * limit).limit(limit).all()
+    total_pages = (total + limit - 1) // limit if total else 0
+
+    return jsonify(
+        {
+            "branches": [branch.to_dict(equipment_count=eq_count) for branch, eq_count in items],
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": total_pages,
+            },
+        }
+    ), 200
 
 
-@branches_bp.route('/<branch_id>', methods=['DELETE'])
+@branches_bp.route("/<branch_id>", methods=["GET"])
 @jwt_required()
-def delete_branch(branch_id):
-    """Delete a branch"""
-    branch = Branch.query.get(branch_id)
+def get_branch(branch_id: str) -> tuple[Response, int]:
+    """Get a specific branch including equipment_count."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    eq_sq = _branch_equipment_count_subquery()
+    row = (
+        db.session.query(
+            Branch,
+            func.coalesce(eq_sq.c.equipment_count, 0).label("equipment_count"),
+        )
+        .outerjoin(eq_sq, Branch.id == eq_sq.c.branch_id)
+        .filter(Branch.id == branch_id)
+        .first()
+    )
+    if not row:
+        return jsonify({"error": "Branch not found"}), 404
+
+    branch, eq_count = row
+
+    if user.role != UserRole.GLOBAL_ADMIN:
+        if branch.company_id != user.company_id:
+            return jsonify({"error": "Forbidden"}), 403
+        allowed_branches = get_allowed_branch_ids(user)
+        if allowed_branches is not None and branch.id not in allowed_branches:
+            return jsonify({"error": "Forbidden"}), 403
+
+    return jsonify(branch.to_dict(equipment_count=eq_count)), 200
+
+
+@branches_bp.route("", methods=["POST"])
+@jwt_required()
+def create_branch() -> tuple[Response, int]:
+    """Create a new branch (Global Admin or owning Company Admin)."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role == UserRole.COMPANY_VIEWER:
+        return jsonify({"error": "Forbidden"}), 403
+
+    raw_data = request.get_json(silent=True)
+    data, val_err = validate_request_schema(_branch_create_schema, raw_data)
+    if val_err or data is None:
+        return jsonify({"error": val_err or "Invalid request payload"}), 400
+
+    company_id: uuid.UUID | str | None
+    if user.role == UserRole.GLOBAL_ADMIN:
+        company_id = data.get("company_id")
+        if not company_id:
+            return jsonify({"error": "company_id is required for Global Admin"}), 400
+    else:
+        requested_company_id = data.get("company_id")
+        if requested_company_id and requested_company_id != str(user.company_id):
+            return jsonify({"error": "Forbidden"}), 403
+        company_id = user.company_id
+
+    name = data["name"]
+    if Branch.query.filter_by(company_id=company_id, name=name).first():
+        return jsonify({"error": "A branch with this name already exists in the company"}), 400
+
+    branch = Branch(
+        company_id=company_id,
+        name=name,
+        address=data["address"],
+        manager_contact=data.get("manager_contact"),
+    )
+
+    try:
+        db.session.add(branch)
+        db.session.flush()
+        record_audit_log(
+            user_id=user.id,
+            action="create_branch",
+            entity_type="branch",
+            entity_id=branch.id,
+            changes={"name": branch.name, "company_id": str(branch.company_id)},
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "A branch with this name already exists in the company"}), 400
+
+    return jsonify(branch.to_dict(equipment_count=0)), 201
+
+
+def _apply_branch_updates(branch: Branch, data: BranchUpdatePayload) -> dict[str, object]:
+    """Apply validated partial update fields to a Branch and return the audit diff."""
+    changes: dict[str, object] = {}
+    if "name" in data and data["name"] != branch.name:
+        changes["name"] = {"old": branch.name, "new": data["name"]}
+        branch.name = data["name"]
+    if "address" in data:
+        new_address = data["address"]
+        if new_address is not None and new_address != branch.address:
+            changes["address"] = {"old": branch.address, "new": new_address}
+            branch.address = new_address
+    if "manager_contact" in data and data["manager_contact"] != branch.manager_contact:
+        changes["manager_contact"] = {"old": branch.manager_contact, "new": data["manager_contact"]}
+        branch.manager_contact = data["manager_contact"]
+    return changes
+
+
+@branches_bp.route("/<branch_id>", methods=["PATCH"])
+@jwt_required()
+def update_branch(branch_id: str) -> tuple[Response, int]:
+    """Update a branch (Global Admin or owning Company Admin)."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role == UserRole.COMPANY_VIEWER:
+        return jsonify({"error": "Forbidden"}), 403
+
+    branch = db.session.get(Branch, branch_id)
     if not branch:
-        return jsonify({'error': 'Branch not found'}), 404
+        return jsonify({"error": "Branch not found"}), 404
 
-    db.session.delete(branch)
-    db.session.commit()
+    if user.role != UserRole.GLOBAL_ADMIN and branch.company_id != user.company_id:
+        return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify({'message': 'Branch deleted'}), 200
+    raw_data = request.get_json(silent=True)
+    data, val_err = validate_request_schema(_branch_update_schema, raw_data, allow_empty=True)
+    if val_err or data is None:
+        return jsonify({"error": val_err or "Invalid request payload"}), 400
+
+    changes = _apply_branch_updates(branch, data)
+
+    try:
+        record_audit_log(
+            user_id=user.id,
+            action="update_branch",
+            entity_type="branch",
+            entity_id=branch.id,
+            changes=changes or None,
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "A branch with this name already exists in the company"}), 400
+
+    eq_count = Equipment.query.filter_by(branch_id=branch.id, is_active=True).count()
+    return jsonify(branch.to_dict(equipment_count=eq_count)), 200
+
+
+@branches_bp.route("/<branch_id>", methods=["DELETE"])
+@jwt_required()
+def delete_branch(branch_id: str) -> tuple[Response, int]:
+    """Delete an empty branch (guarded against assigned equipment and single-branch viewers)."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role == UserRole.COMPANY_VIEWER:
+        return jsonify({"error": "Forbidden"}), 403
+
+    branch = db.session.get(Branch, branch_id)
+    if not branch:
+        return jsonify({"error": "Branch not found"}), 404
+
+    if user.role != UserRole.GLOBAL_ADMIN and branch.company_id != user.company_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    # Guard 1: Cannot delete a branch that has any equipment (active or historical)
+    assigned_equipment_count = Equipment.query.filter_by(branch_id=branch.id).count()
+    if assigned_equipment_count > 0:
+        return jsonify(
+            {
+                "error": "Conflict",
+                "message": "Cannot delete branch with assigned equipment. Reassign equipment first.",
+                "equipment_count": assigned_equipment_count,
+            }
+        ), 409
+
+    # Guard 2: Cannot delete a branch if any restricted viewer would be left with 0 branches
+    restricted_users_with_branch = (
+        db.session.query(UserBranchAccess.user_id)
+        .join(User, User.id == UserBranchAccess.user_id)
+        .filter(
+            UserBranchAccess.branch_id == branch.id,
+            User.role == UserRole.COMPANY_VIEWER,
+            User.branch_access_type == BranchAccessType.RESTRICTED,
+        )
+        .subquery()
+    )
+    orphaned_viewer = (
+        db.session.query(UserBranchAccess.user_id)
+        .filter(UserBranchAccess.user_id.in_(db.session.query(restricted_users_with_branch.c.user_id)))
+        .group_by(UserBranchAccess.user_id)
+        .having(func.count(UserBranchAccess.branch_id) <= 1)
+        .first()
+    )
+    if orphaned_viewer:
+        return jsonify(
+            {
+                "error": "Conflict",
+                "message": "Cannot delete branch because at least one restricted viewer is only assigned to this branch.",
+            }
+        ), 409
+
+    deleted_id = branch.id
+    deleted_name = branch.name
+    try:
+        db.session.delete(branch)
+        record_audit_log(
+            user_id=user.id,
+            action="delete_branch",
+            entity_type="branch",
+            entity_id=deleted_id,
+            changes={"name": deleted_name},
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(
+            {
+                "error": "Conflict",
+                "message": "Branch is still referenced and cannot be deleted.",
+            }
+        ), 409
+
+    return jsonify({"message": "Branch deleted"}), 200
