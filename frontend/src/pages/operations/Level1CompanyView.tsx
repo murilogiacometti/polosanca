@@ -323,8 +323,15 @@ export default function Level1CompanyView({
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <EnvironmentOutlined style={{ color: '#2563eb', fontSize: 15 }} />
-                      <span
+                      <button
+                        type="button"
+                        onClick={() => onZoomBranch(branch.id)}
                         style={{
+                          border: 'none',
+                          background: 'transparent',
+                          padding: 0,
+                          textAlign: 'left',
+                          cursor: 'pointer',
                           fontSize: 16.5,
                           fontWeight: 700,
                           color: 'var(--ps-text-primary)',
@@ -332,7 +339,7 @@ export default function Level1CompanyView({
                         }}
                       >
                         {branch.name}
-                      </span>
+                      </button>
                     </div>
                     <div
                       style={{
@@ -382,13 +389,16 @@ export default function Level1CompanyView({
                 />
 
                 {rep && (
-                  <div
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDirectJumpEquipment(company?.id || branch.company_id, branch.id, rep.id);
                     }}
                     style={{
                       marginTop: 'auto',
+                      width: '100%',
+                      textAlign: 'left',
                       padding: '11px 14px 10px',
                       borderRadius: 10,
                       background: 'var(--ps-subtle-surface)',
@@ -435,7 +445,7 @@ export default function Level1CompanyView({
                       withTopBorder={false}
                       height={32}
                     />
-                  </div>
+                  </button>
                 )}
               </AccentCard>
             );

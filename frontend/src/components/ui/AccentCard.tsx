@@ -1,10 +1,11 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { resolveStatusAccentColor } from '../../theme/tokens';
 import type { AccentStatus } from '../../types/models';
 
 export interface AccentCardProps {
   status?: AccentStatus | (string & {});
-  onClick?: ((e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => void) | null;
+  onClick?: ((e?: MouseEvent<HTMLButtonElement>) => void) | null;
+  ariaLabel?: string;
   selected?: boolean;
   dimmed?: boolean;
   padding?: string | number;
@@ -15,11 +16,13 @@ export interface AccentCardProps {
 
 /**
  * Cartão operacional canônico de 14px com barra semântica esquerda de 4px,
- * suporte opcional a clique/teclado (Enter/Space) e elevação sutil no hover.
+ * suporte opcional a clique/teclado acessível sem controles interativos aninhados
+ * (`nested-interactive`) e elevação sutil no hover.
  */
 export default function AccentCard({
   status = null,
   onClick = null,
+  ariaLabel = 'Abrir detalhes',
   selected = false,
   dimmed = false,
   padding = '20px 22px',
@@ -32,20 +35,7 @@ export default function AccentCard({
 
   return (
     <div
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
       className={`ps-clean-card ${clickable ? 'ps-clean-card-clickable' : ''}`}
-      onClick={clickable && onClick ? (e) => onClick(e) : undefined}
-      onKeyDown={
-        clickable && onClick
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClick(e);
-              }
-            }
-          : undefined
-      }
       style={{
         borderColor: selected ? '#2563eb' : undefined,
         borderLeft: accentColor ? `4px solid ${accentColor}` : undefined,
@@ -57,7 +47,29 @@ export default function AccentCard({
         ...style,
       }}
     >
-      {children}
+      {clickable && onClick && (
+        <button
+          type="button"
+          className="ps-card-stretch-btn"
+          aria-label={ariaLabel}
+          onClick={(e) => onClick(e)}
+        />
+      )}
+      {clickable ? (
+        <div
+          className="ps-card-stretch-content"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap,
+            flex: 1,
+          }}
+        >
+          {children}
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }

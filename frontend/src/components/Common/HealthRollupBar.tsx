@@ -23,7 +23,7 @@ export interface HealthRollupBarProps {
   offline?: number;
   topLeftLabel?: ReactNode;
   topRightLabel?: ReactNode;
-  onSegmentClick?: ((status: EquipmentStatus, event: ReactMouseEvent<HTMLSpanElement>) => void) | null;
+  onSegmentClick?: ((status: EquipmentStatus, event: ReactMouseEvent<HTMLButtonElement>) => void) | null;
 }
 
 /**
@@ -116,26 +116,8 @@ export default function HealthRollupBar({
             const label = `${val} ${val === 1 ? seg.singular : seg.plural}`;
             const clickable = Boolean(onSegmentClick) && seg.key !== 'operational';
 
-            const itemNode = (
-              <span
-                key={seg.key}
-                onClick={
-                  clickable && onSegmentClick
-                    ? (e) => {
-                        e.stopPropagation();
-                        onSegmentClick(seg.key, e);
-                      }
-                    : undefined
-                }
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  color: 'var(--ps-text-primary)',
-                  fontWeight: seg.key === 'critical' ? 600 : 500,
-                  cursor: clickable ? 'pointer' : 'default',
-                }}
-              >
+            const content = (
+              <>
                 <span
                   style={{
                     width: 7,
@@ -146,8 +128,42 @@ export default function HealthRollupBar({
                   }}
                 />
                 <span className="ps-tabular">{label}</span>
-              </span>
+              </>
             );
+
+            const commonStyle = {
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              color: 'var(--ps-text-primary)',
+              fontWeight: seg.key === 'critical' ? 600 : 500,
+              fontSize: 'inherit',
+            } as const;
+
+            const itemNode =
+              clickable && onSegmentClick ? (
+                <button
+                  key={seg.key}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSegmentClick(seg.key, e);
+                  }}
+                  style={{
+                    ...commonStyle,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {content}
+                </button>
+              ) : (
+                <span key={seg.key} style={commonStyle}>
+                  {content}
+                </span>
+              );
 
             if (!clickable) return itemNode;
 

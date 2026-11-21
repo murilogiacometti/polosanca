@@ -37,7 +37,7 @@ export default function LiveRecoveryBadge({ snapshot }: LiveRecoveryBadgeProps) 
           borderRadius: 999,
           fontSize: 11.5,
           fontWeight: 600,
-          color: '#16a34a',
+          color: '#15803d',
           background: 'rgba(22, 163, 74, 0.12)',
           border: '1px solid rgba(22, 163, 74, 0.3)',
         }}
@@ -59,7 +59,7 @@ export default function LiveRecoveryBadge({ snapshot }: LiveRecoveryBadgeProps) 
           borderRadius: 999,
           fontSize: 11.5,
           fontWeight: 600,
-          color: '#dc2626',
+          color: '#b91c1c',
           background: 'var(--ps-crit-tint)',
           border: '1px solid var(--ps-crit-border)',
         }}
@@ -81,7 +81,7 @@ export default function LiveRecoveryBadge({ snapshot }: LiveRecoveryBadgeProps) 
           borderRadius: 999,
           fontSize: 11.5,
           fontWeight: 600,
-          color: '#d97706',
+          color: '#b45309',
           background: 'var(--ps-warn-tint)',
           border: '1px solid var(--ps-warn-border)',
         }}

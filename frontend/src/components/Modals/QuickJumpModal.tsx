@@ -425,6 +425,12 @@ export default function QuickJumpModal({
                 tabIndex={-1}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onClick={() => handleSelect(item)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelect(item);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

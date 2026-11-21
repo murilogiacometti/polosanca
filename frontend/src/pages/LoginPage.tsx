@@ -216,7 +216,7 @@ export default function LoginPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  color: '#16a34a',
+                  color: '#15803d',
                   fontWeight: 600,
                   display: 'inline-flex',
                   alignItems: 'center',

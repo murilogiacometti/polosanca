@@ -25,6 +25,7 @@ interface TrackConfig {
   activeLabel: string;
   idleLabel: string;
   color: string;
+  textColor: string;
   Icon: ComponentType<{ style?: CSSProperties }>;
 }
 
@@ -49,6 +50,7 @@ const TRACKS: readonly TrackConfig[] = [
     activeLabel: 'Em Degelo (Ativa)',
     idleLabel: 'Desligada',
     color: SEMANTIC_HEX.info,
+    textColor: '#0369a1',
     Icon: FireOutlined,
   },
   {
@@ -57,6 +59,7 @@ const TRACKS: readonly TrackConfig[] = [
     activeLabel: 'Aberta',
     idleLabel: 'Fechada',
     color: SEMANTIC_HEX.warning,
+    textColor: SEMANTIC_HEX.warningText,
     Icon: UnlockOutlined,
   },
   {
@@ -65,6 +68,7 @@ const TRACKS: readonly TrackConfig[] = [
     activeLabel: 'Ligado (Resfriando)',
     idleLabel: 'Em Repouso',
     color: SEMANTIC_HEX.operational,
+    textColor: SEMANTIC_HEX.operationalText,
     Icon: ThunderboltOutlined,
   },
   {
@@ -73,6 +77,7 @@ const TRACKS: readonly TrackConfig[] = [
     activeLabel: 'Ligado',
     idleLabel: 'Parado',
     color: SEMANTIC_HEX.brand,
+    textColor: '#1d4ed8',
     Icon: SyncOutlined,
   },
 ];
@@ -226,6 +231,8 @@ function SwimlaneTrackRow({
         role="slider"
         tabIndex={0}
         aria-label={`Linha do tempo de ${track.label}`}
+        aria-valuemin={0}
+        aria-valuemax={Math.max(totalPoints - 1, 0)}
         aria-valuenow={activeIdx ?? 0}
         onMouseMove={(e) => {
           const idx = onResolveMouseIndex(e);
@@ -234,6 +241,19 @@ function SwimlaneTrackRow({
         onClick={(e) => {
           const idx = onResolveMouseIndex(e);
           if (idx !== null) onToggleLockIdx?.(idx);
+        }}
+        onKeyDown={(e) => {
+          const current = activeIdx ?? 0;
+          if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            onHoverIdx?.(Math.min(totalPoints - 1, current + 1));
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            onHoverIdx?.(Math.max(0, current - 1));
+          } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleLockIdx?.(current);
+          }
         }}
         style={{
           position: 'relative',
@@ -325,7 +345,7 @@ function SwimlaneTrackRow({
           fontSize: 11.5,
           fontWeight: 700,
           textAlign: 'right',
-          color: info.dutyPct > 0 ? track.color : 'var(--ps-text-secondary)',
+          color: info.dutyPct > 0 ? track.textColor : 'var(--ps-text-secondary)',
         }}
       >
         {info.dutyPct}%

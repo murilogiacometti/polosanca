@@ -33,9 +33,9 @@ const ACTIVE_PILL_STYLE: CSSProperties = {
   gap: 6,
   padding: '4px 11px',
   borderRadius: 8,
-  border: '1px solid rgba(59, 130, 246, 0.22)',
+  border: '1px solid rgba(59, 130, 246, 0.25)',
   background: 'rgba(59, 130, 246, 0.1)',
-  color: '#2563eb',
+  color: '#1d4ed8',
   fontWeight: 600,
   fontSize: 12.5,
   cursor: 'pointer',
@@ -150,6 +150,7 @@ function BranchCrumb({
       {zoomDepth === 2 && branches.length > 1 ? (
         <Select<string>
           size="small"
+          aria-label="Selecionar filial"
           className="ps-scope-select"
           showSearch={branches.length > 5}
           optionFilterProp="label"
@@ -207,6 +208,7 @@ function EquipmentCrumb({
       {equipments.length > 1 ? (
         <Select<string>
           size="small"
+          aria-label="Selecionar equipamento"
           className="ps-scope-select"
           showSearch={equipments.length > 5}
           optionFilterProp="label"
@@ -317,7 +319,7 @@ function ScopeBreadcrumbTrail({
           <BankOutlined style={{ fontSize: 13 }} />
           <span>Empresas</span>
           {companyCount > 0 && (
-            <span className="ps-tabular" style={{ fontSize: 11.5, opacity: 0.78 }}>
+            <span className="ps-tabular" style={{ fontSize: 11.5 }}>
               ({companyCount})
             </span>
           )}

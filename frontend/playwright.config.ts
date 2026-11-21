@@ -14,7 +14,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testMatch: /cujs\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mobile-chromium',
+      testMatch: /mobile-a11y\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      },
     },
   ],
   webServer: {

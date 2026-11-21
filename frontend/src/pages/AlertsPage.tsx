@@ -138,6 +138,7 @@ function AlertsFilterBar({
     <Row gutter={[10, 10]}>
       <Col xs={24} sm={12} lg={hasMultipleBranches ? 5 : 6}>
         <Select<AlertSeverity>
+          aria-label="Filtrar por severidade"
           allowClear
           style={{ width: '100%' }}
           placeholder="Severidade"
@@ -153,6 +154,7 @@ function AlertsFilterBar({
       {hasMultipleBranches && (
         <Col xs={24} sm={12} lg={6}>
           <Select<string>
+            aria-label="Filtrar por filial"
             allowClear
             style={{ width: '100%' }}
             placeholder="Filtrar por filial"
@@ -165,6 +167,7 @@ function AlertsFilterBar({
 
       <Col xs={24} sm={12} lg={hasMultipleBranches ? 6 : 9}>
         <Select<string>
+          aria-label="Filtrar por equipamento"
           allowClear
           showSearch
           optionFilterProp="label"

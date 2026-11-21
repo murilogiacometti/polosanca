@@ -54,21 +54,23 @@ export default function TelemetryChartHeaderControls({
 }: TelemetryChartHeaderControlsProps) {
   return (
     <Space wrap size={8}>
-      <label style={CHIP_LABEL_STYLE}>
+      <div style={CHIP_LABEL_STYLE}>
         <Checkbox
           checked={compare24h}
           onChange={(e) => onCompare24hChange?.(e.target.checked)}
-        />
-        <span>vs. Ontem (-24h)</span>
-      </label>
+        >
+          vs. Ontem (-24h)
+        </Checkbox>
+      </div>
 
-      <label style={CHIP_LABEL_STYLE}>
+      <div style={CHIP_LABEL_STYLE}>
         <Checkbox
           checked={showPressureChart}
           onChange={(e) => onShowPressureChartChange(e.target.checked)}
-        />
-        <span>Curva de Pressão</span>
-      </label>
+        >
+          Curva de Pressão
+        </Checkbox>
+      </div>
 
       <Segmented<TelemetryInterval>
         className="ps-pill-switcher"
@@ -86,6 +88,7 @@ export default function TelemetryChartHeaderControls({
       />
 
       <Select<TelemetryWindowKey>
+        aria-label="Janela de tempo da telemetria"
         value={timeWindow}
         onChange={(val) => {
           onResetZoom();

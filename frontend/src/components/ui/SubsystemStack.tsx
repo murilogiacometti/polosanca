@@ -90,7 +90,7 @@ function SubsystemGrid({
           style={{
             ...GRID_CELL_BASE,
             background: doorOpenActive ? 'var(--ps-warn-tint)' : 'var(--ps-subtle-divider)',
-            color: doorOpenActive ? '#d97706' : 'var(--ps-text-secondary)',
+            color: doorOpenActive ? '#b45309' : 'var(--ps-text-secondary)',
             border: doorOpenActive
               ? '1px solid var(--ps-warn-border)'
               : '1px solid transparent',
@@ -110,7 +110,7 @@ function SubsystemGrid({
           style={{
             ...GRID_CELL_BASE,
             background: compActive ? 'var(--ps-ok-tint)' : 'var(--ps-subtle-divider)',
-            color: compActive ? '#059669' : 'var(--ps-text-secondary)',
+            color: compActive ? '#047857' : 'var(--ps-text-secondary)',
           }}
         >
           <ThunderboltOutlined style={{ fontSize: 12, flexShrink: 0 }} />
@@ -168,7 +168,7 @@ function SubsystemDoorPill({
         style={{
           ...pillBase,
           background: isOffline ? 'var(--ps-subtle-divider)' : 'var(--ps-warn-tint)',
-          color: isOffline ? 'var(--ps-text-secondary)' : '#d97706',
+          color: isOffline ? 'var(--ps-text-secondary)' : '#b45309',
           border: `1px solid ${isOffline ? 'var(--ps-border)' : 'var(--ps-warn-border)'}`,
         }}
       >
@@ -186,7 +186,7 @@ function SubsystemDoorPill({
       style={{
         ...pillBase,
         background: doorClosedActive ? 'var(--ps-ok-tint)' : 'var(--ps-subtle-divider)',
-        color: doorClosedActive ? '#059669' : 'var(--ps-text-secondary)',
+        color: doorClosedActive ? '#047857' : 'var(--ps-text-secondary)',
       }}
     >
       Porta {doorState.label}
@@ -269,7 +269,7 @@ function SubsystemPills({
           style={{
             ...pillBase,
             background: compActive ? 'var(--ps-ok-tint)' : 'var(--ps-subtle-divider)',
-            color: compActive ? '#059669' : 'var(--ps-text-secondary)',
+            color: compActive ? '#047857' : 'var(--ps-text-secondary)',
           }}
         >
           <ThunderboltOutlined style={{ fontSize: iconFontSize }} />

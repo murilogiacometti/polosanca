@@ -20,14 +20,14 @@ export default function StatMiniCard({
   const isWarning = tone === 'warning' && Number(value) > 0;
 
   const labelColor = isCritical
-    ? '#dc2626'
+    ? '#b91c1c'
     : isWarning
-      ? '#d97706'
+      ? '#b45309'
       : 'var(--ps-text-secondary)';
   const valueColor = isCritical
-    ? '#dc2626'
+    ? '#b91c1c'
     : isWarning
-      ? '#d97706'
+      ? '#b45309'
       : 'var(--ps-text-primary)';
 
   const toneClass = isCritical

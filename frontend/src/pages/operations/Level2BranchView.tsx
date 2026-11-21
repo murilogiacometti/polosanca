@@ -171,6 +171,7 @@ function EquipmentStatusCard({ eq, onZoomEquipment }: EquipmentStatusCardProps) 
       status={st}
       padding="18px 20px 16px"
       gap={14}
+      ariaLabel={`Abrir equipamento ${eq.serial}`}
       onClick={() => onZoomEquipment(eq.id)}
     >
       <div
@@ -182,9 +183,16 @@ function EquipmentStatusCard({ eq, onZoomEquipment }: EquipmentStatusCardProps) 
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <div
+          <button
+            type="button"
             className="ps-mono"
+            onClick={() => onZoomEquipment(eq.id)}
             style={{
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              textAlign: 'left',
+              cursor: 'pointer',
               fontSize: 15,
               fontWeight: 700,
               color: 'var(--ps-text-primary)',
@@ -192,7 +200,7 @@ function EquipmentStatusCard({ eq, onZoomEquipment }: EquipmentStatusCardProps) 
             }}
           >
             {eq.serial}
-          </div>
+          </button>
           <div
             style={{
               marginTop: 2,

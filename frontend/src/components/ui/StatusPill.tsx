@@ -107,27 +107,25 @@ export default function StatusPill({
   const padding = size === 'md' ? '4px 11px' : '3px 9px';
   const fontSize = size === 'md' ? 12 : 11;
 
-  const pillNode = (
-    <span
-      className="ps-tabular"
-      onClick={onClick || undefined}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding,
-        borderRadius: 999,
-        background: cfg.bg,
-        border: bordered ? `1px solid ${cfg.border}` : '1px solid transparent',
-        color: cfg.color,
-        fontSize,
-        fontWeight: 600,
-        lineHeight: 1.35,
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-        cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
+  const pillStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding,
+    borderRadius: 999,
+    background: cfg.bg,
+    border: bordered ? `1px solid ${cfg.border}` : '1px solid transparent',
+    color: cfg.color,
+    fontSize,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    cursor: onClick ? 'pointer' : 'default',
+  } as const;
+
+  const pillContent = (
+    <>
       {dot && (
         <span
           className={pulse ? cfg.pulseClass : ''}
@@ -142,6 +140,16 @@ export default function StatusPill({
       )}
       {icon}
       <span>{children}</span>
+    </>
+  );
+
+  const pillNode = onClick ? (
+    <button type="button" className="ps-tabular" onClick={onClick} style={pillStyle}>
+      {pillContent}
+    </button>
+  ) : (
+    <span className="ps-tabular" style={pillStyle}>
+      {pillContent}
     </span>
   );
 

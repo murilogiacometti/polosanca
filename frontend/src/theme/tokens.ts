@@ -7,13 +7,13 @@ import type { AccentStatus, AlertSeverity, AlertStatus, StatusTone } from '../ty
 export const SEMANTIC_HEX = {
   brand: '#2563eb',
   operational: '#10b981',
-  operationalText: '#059669',
+  operationalText: '#047857',
   warning: '#f59e0b',
-  warningText: '#d97706',
+  warningText: '#b45309',
   critical: '#ef4444',
-  criticalText: '#dc2626',
+  criticalText: '#b91c1c',
   offline: '#94a3b8',
-  offlineText: '#64748b',
+  offlineText: '#475569',
   info: '#0284c7',
   teal: '#0d9488',
 } as const;

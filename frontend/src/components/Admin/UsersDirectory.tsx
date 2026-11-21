@@ -805,6 +805,7 @@ function UsersFiltersBar({
       {showCompanyFilter && (
         <Col xs={24} sm={12} lg={6}>
           <Select<string>
+            aria-label="Filtrar por empresa"
             allowClear
             showSearch
             optionFilterProp="label"
@@ -819,6 +820,7 @@ function UsersFiltersBar({
 
       <Col xs={24} sm={12} lg={colSpan}>
         <Select<UserRole>
+          aria-label="Filtrar por perfil"
           allowClear
           style={{ width: '100%' }}
           placeholder="Filtrar por perfil"
@@ -830,6 +832,7 @@ function UsersFiltersBar({
 
       <Col xs={24} sm={12} lg={colSpan}>
         <Select<UserStatus>
+          aria-label="Filtrar por status"
           allowClear
           style={{ width: '100%' }}
           placeholder="Filtrar por status"

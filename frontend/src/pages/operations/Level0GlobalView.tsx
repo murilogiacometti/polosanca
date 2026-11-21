@@ -162,6 +162,7 @@ function CompanyOverviewCard({
       status={cardStatus}
       dimmed={comp.status === 'inactive'}
       gap={20}
+      ariaLabel={`Abrir empresa ${comp.name}`}
       onClick={() => onZoomCompany(comp.id)}
       style={{ justifyContent: 'space-between' }}
     >
@@ -175,16 +176,23 @@ function CompanyOverviewCard({
       >
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span
+            <button
+              type="button"
+              onClick={() => onZoomCompany(comp.id)}
               style={{
+                border: 'none',
+                background: 'transparent',
+                padding: 0,
+                textAlign: 'left',
+                cursor: 'pointer',
                 fontSize: 16.5,
                 fontWeight: 700,
-                color: hasCritical ? '#2563eb' : 'var(--ps-text-primary)',
+                color: hasCritical ? '#1d4ed8' : 'var(--ps-text-primary)',
                 lineHeight: 1.3,
               }}
             >
               {comp.name}
-            </span>
+            </button>
             {!isActive && (
               <Tag color={compStCfg.color} style={{ margin: 0, borderRadius: 999 }}>
                 {compStCfg.label}

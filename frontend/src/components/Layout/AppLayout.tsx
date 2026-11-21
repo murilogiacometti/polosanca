@@ -68,7 +68,7 @@ interface UserHeaderIdentity {
 
 function ActivityPulseIcon() {
   return (
-    <span role="img" className="anticon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+    <span aria-hidden="true" className="anticon" style={{ display: 'inline-flex', alignItems: 'center' }}>
       <svg
         width="15"
         height="15"
@@ -231,7 +231,7 @@ function HeaderUserProfileButton({
     >
       <button
         type="button"
-        aria-label={primaryName ? `Conta de ${primaryName}` : 'Menu da conta'}
+        aria-label={primaryName ? `${initials} — Conta de ${primaryName}` : 'Menu da conta'}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -607,9 +607,14 @@ export default function AppLayout() {
     'Monitoramento';
 
   const brandBlock = (compact: boolean) => (
-    <div
+    <button
+      type="button"
       style={{
         height: 60,
+        width: '100%',
+        border: 'none',
+        background: 'transparent',
+        textAlign: 'left',
         display: 'flex',
         alignItems: 'center',
         justifyContent: compact ? 'center' : 'flex-start',
@@ -645,12 +650,12 @@ export default function AppLayout() {
           <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: 14, lineHeight: 1.25 }}>
             Polo Sanca
           </div>
-          <div style={{ color: '#64748b', fontSize: 11, lineHeight: 1.2 }}>
+          <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.2 }}>
             Refrigeração Industrial
           </div>
         </div>
       )}
-    </div>
+    </button>
   );
 
   const handleSidebarClick = (key: string, closeMobile: boolean) => {

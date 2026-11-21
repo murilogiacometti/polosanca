@@ -12,6 +12,7 @@
     "knip": "knip",
     "complexity": "eslint --rule 'complexity: [warn, 15]' src",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile-chromium",
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview"
   },
@@ -27,12 +28,14 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.65.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
