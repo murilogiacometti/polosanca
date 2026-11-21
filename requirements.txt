@@ -8,7 +8,7 @@ Flask-Limiter==3.8.0
 Flask-Mail==0.9.1
 
 # Database
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.13
 SQLAlchemy==2.0.23
 
 # Background Tasks
