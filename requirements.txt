@@ -12,7 +12,7 @@ psycopg2-binary==2.9.9
 SQLAlchemy==2.0.23
 
 # Background Tasks
-celery==5.3.4
+celery==5.7.0
 redis==6.2.0
 
 # Security
