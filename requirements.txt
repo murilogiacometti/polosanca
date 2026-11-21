@@ -25,7 +25,7 @@ PyYAML==6.0.4
 email-validator==2.1.0
 
 # Utilities
-python-dateutil==2.8.2
+python-dateutil==4.0.0
 pytz==2024.1
 
 # Development
