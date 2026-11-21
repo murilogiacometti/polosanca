@@ -16,7 +16,7 @@ celery==5.3.4
 redis==6.2.0
 
 # Security
-bcrypt==4.1.2
+bcrypt==5.0.0
 python-dotenv==1.2.2
 
 # Validation & OpenAPI
