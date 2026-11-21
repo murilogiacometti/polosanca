@@ -19,6 +19,11 @@ type TelemetryDataPoint = OpenApiSchemas['TelemetryDataPoint'];
 export interface MockSessionOptions {
   role?: UserRole;
   restrictedBranchId?: string;
+  loginFailure?: {
+    status: number;
+    body: string;
+    contentType?: string;
+  };
 }
 
 const IDS = {
@@ -499,12 +504,26 @@ export async function installMockApi(
     return { temperature, notes };
   };
 
+  const readStringField = (raw: unknown, key: string, fallback = ''): string => {
+    if (typeof raw !== 'object' || raw === null || !(key in raw)) return fallback;
+    const val = Object.getOwnPropertyDescriptor(raw, key)?.value;
+    return typeof val === 'string' ? val : fallback;
+  };
+
   const handleAuthPreSessionRoute = async (
     route: Route,
     path: string,
     method: string
   ): Promise<boolean> => {
     if (path === '/auth/login' && method === 'POST') {
+      if (options.loginFailure) {
+        await route.fulfill({
+          status: options.loginFailure.status,
+          contentType: options.loginFailure.contentType ?? 'text/html',
+          body: options.loginFailure.body,
+        });
+        return true;
+      }
       const response: OpenApiSchemas['LoginResponse'] = {
         access_token: 'mock-access-token',
         refresh_token: 'mock-refresh-token',
@@ -521,10 +540,65 @@ export async function installMockApi(
       await fulfillJson(route, response);
       return true;
     }
+    if (path === '/auth/forgot-password' && method === 'POST') {
+      const response: OpenApiSchemas['MessageResponse'] = {
+        success: true,
+        message: 'Instruções enviadas com sucesso.',
+      };
+      await fulfillJson(route, response);
+      return true;
+    }
+    if (path === '/auth/reset-password' && method === 'POST') {
+      const response: OpenApiSchemas['MessageResponse'] = {
+        success: true,
+        message: 'Senha redefinida com sucesso.',
+      };
+      await fulfillJson(route, response);
+      return true;
+    }
+    if (path === '/users/accept-invitation' && method === 'POST') {
+      const response: OpenApiSchemas['MessageResponse'] = {
+        success: true,
+        message: 'Conta ativada com sucesso.',
+      };
+      await fulfillJson(route, response);
+      return true;
+    }
     return false;
   };
 
+  let createdCounter = 1;
+
   const handleOrgRoute = async (route: Route, path: string, method: string): Promise<boolean> => {
+    if (path === '/companies' && method === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      const created: Company = {
+        id: `11111111-1111-4111-8111-00000000000${createdCounter++}`,
+        name: readStringField(raw, 'name', 'Nova Empresa'),
+        status: 'active',
+        contact_email: readStringField(raw, 'contact_email') || null,
+        contact_phone: readStringField(raw, 'contact_phone') || null,
+        branches_count: 1,
+        equipment_count: 0,
+      };
+      companies.push(created);
+      await fulfillJson<Company>(route, created, 201);
+      return true;
+    }
+    if (path === '/branches' && method === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      const created: Branch = {
+        id: `33333333-3333-4333-8333-00000000000${createdCounter++}`,
+        company_id: readStringField(raw, 'company_id', currentUser.company_id ?? IDS.companyA),
+        name: readStringField(raw, 'name', 'Nova Filial'),
+        address: readStringField(raw, 'address', 'Endereço não informado'),
+        manager_contact: readStringField(raw, 'manager_contact') || null,
+        equipment_count: 0,
+      };
+      allBranches.push(created);
+      await fulfillJson<Branch>(route, created, 201);
+      return true;
+    }
     if (method !== 'GET') return false;
     if (path === '/auth/me') {
       await fulfillJson<User>(route, currentUser);
@@ -590,9 +664,45 @@ export async function installMockApi(
       return true;
     }
 
+    if (path === '/equipments' && method === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      const branchId = readStringField(raw, 'branch_id', IDS.branchCentro);
+      const branch = allBranches.find((b) => b.id === branchId);
+      const created: Equipment & { api_key: string } = {
+        id: `55555555-5555-4555-8555-00000000000${createdCounter++}`,
+        serial: readStringField(raw, 'serial', 'CAM-NOVA-001'),
+        type: 'freezer',
+        model: readStringField(raw, 'model') || null,
+        manufacturer: readStringField(raw, 'manufacturer') || null,
+        status: 'offline',
+        company_id: readStringField(raw, 'company_id', currentUser.company_id ?? IDS.companyA),
+        branch_id: branchId,
+        branch_name: branch?.name ?? 'Filial Centro',
+        is_active: true,
+        last_seen_at: null,
+        last_maintenance_date: null,
+        next_maintenance_date: null,
+        current_data: {},
+        api_key: 'ps_live_mock_key_0001',
+      };
+      equipments.push(created);
+      await fulfillJson(route, created, 201);
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleEquipmentMaintenanceRoute = async (
+    route: Route,
+    path: string,
+    method: string
+  ): Promise<boolean> => {
     const eqMaintMatch = path.match(/^\/equipments\/([^/]+)\/maintenance-records$/);
-    if (eqMaintMatch && method === 'GET') {
-      const eqId = eqMaintMatch[1] ?? '';
+    if (!eqMaintMatch) return false;
+    const eqId = eqMaintMatch[1] ?? '';
+
+    if (method === 'GET') {
       const filtered = maintenanceRecords.filter((m) => m.equipment_id === eqId);
       const response: OpenApiSchemas['MaintenanceRecordsListResponse'] = {
         equipment_id: eqId,
@@ -600,6 +710,22 @@ export async function installMockApi(
         pagination: makePagination(filtered.length),
       };
       await fulfillJson(route, response);
+      return true;
+    }
+    if (method === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      const created: MaintenanceRecord = {
+        id: `m-${++createdCounter}`,
+        equipment_id: eqId,
+        type: 'preventive',
+        performed_at: readStringField(raw, 'performed_at', new Date().toISOString()),
+        performed_by: readStringField(raw, 'performed_by', 'Técnico PoloSanca'),
+        description: readStringField(raw, 'description', 'Revisão preventiva'),
+        notes: readStringField(raw, 'notes') || null,
+        next_maintenance_date: readStringField(raw, 'next_maintenance_date') || null,
+      };
+      maintenanceRecords.unshift(created);
+      await fulfillJson<MaintenanceRecord>(route, created, 201);
       return true;
     }
 
@@ -788,6 +914,22 @@ export async function installMockApi(
   };
 
   const handleAdminRoute = async (route: Route, path: string, method: string): Promise<boolean> => {
+    if (path === '/users/invite' && method === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      const created: User = {
+        id: `cccccccc-cccc-4ccc-8ccc-00000000000${createdCounter++}`,
+        name: readStringField(raw, 'name', 'Novo Operador'),
+        email: readStringField(raw, 'email', 'novo@supermercados.com'),
+        role: 'company_viewer',
+        status: 'pending',
+        company_id: readStringField(raw, 'company_id', IDS.companyA),
+        branch_access_type: 'restricted',
+        branch_access: { type: 'restricted', branches: [IDS.branchCentro] },
+      };
+      users.push(created);
+      await fulfillJson<User>(route, created, 201);
+      return true;
+    }
     if (method !== 'GET') return false;
     if (path === '/alert-rules') {
       const response: OpenApiSchemas['AlertRulesListResponse'] = {
@@ -833,6 +975,7 @@ export async function installMockApi(
 
     if (await handleOrgRoute(route, path, method)) return;
     if (await handleEquipmentRoute(route, path, method)) return;
+    if (await handleEquipmentMaintenanceRoute(route, path, method)) return;
     if (await handleEquipmentTelemetryRoute(route, path, method)) return;
     if (await handleTelemetryRoute(route, path, method)) return;
     if (await handleAlertRoute(route, url, path, method)) return;
