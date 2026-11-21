@@ -321,6 +321,15 @@ body {
 .ps-card-stretch-content {
   position: relative;
   z-index: 1;
+  pointer-events: none;
+}
+
+.ps-card-stretch-content button,
+.ps-card-stretch-content a,
+.ps-card-stretch-content input,
+.ps-card-stretch-content select,
+.ps-card-stretch-content [role='button'] {
+  pointer-events: auto;
 }
 
 .ps-card-stretch-content button {

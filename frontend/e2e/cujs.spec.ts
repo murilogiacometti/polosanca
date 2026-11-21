@@ -40,13 +40,20 @@ test.describe('Polo Sanca — Critical User Journeys (CUJ-1 a CUJ-10)', () => {
     await installMockApi(page, { role: 'global_admin' });
     await loginViaUi(page);
 
-    // Nível 0 -> Nível 1 (Empresa)
-    await page.getByText('Supermercados São Carlos').click();
+    // Nível 0 -> Nível 1 (Empresa) — clica no corpo do cartão (sobre o selo "2 Filiais", fora do título)
+    const branchesBadgeBox = await page.getByText('2 Filiais').boundingBox();
+    expect(branchesBadgeBox).not.toBeNull();
+    if (branchesBadgeBox) {
+      await page.mouse.click(
+        branchesBadgeBox.x + branchesBadgeBox.width / 2,
+        branchesBadgeBox.y + branchesBadgeBox.height / 2
+      );
+    }
     await expect(page).toHaveURL(new RegExp(`/operacao/empresas/${MOCK_IDS.companyA}$`));
     await expect(page.getByText('Filial Centro')).toBeVisible();
     await expect(page.getByText('Filial Iguatemi')).toBeVisible();
 
-    // Nível 1 -> Nível 2 (Filial Centro)
+    // Nível 1 -> Nível 2 (Filial Centro) — clica no selo "Abrir" do cartão
     await page.getByText('Filial Centro').click();
     await expect(page).toHaveURL(
       new RegExp(`/operacao/empresas/${MOCK_IDS.companyA}/filiais/${MOCK_IDS.branchCentro}`)
