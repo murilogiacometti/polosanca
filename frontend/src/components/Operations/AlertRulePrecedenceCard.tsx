@@ -1,17 +1,19 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, Empty, Select, Spin, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { getEquipmentAlertRules } from '../../api';
 import { resolveAlertSeverityTone } from '../../theme/tokens';
-import type { AlertScope, AlertSeverity, AlertType, Equipment } from '../../types/models';
+import type { AlertRule, AlertScope, AlertSeverity, AlertType, Equipment } from '../../types/models';
 import {
   ALERT_SCOPE_LABELS,
   ALERT_SEVERITY_CONFIG,
   ALERT_TYPE_LABELS,
   formatAlertRuleCondition,
 } from '../../utils/formatters';
-import type { AlertRuleRecord } from '../Modals/AlertRuleModalForm';
 import { StatusPill } from '../ui';
 
-const PRIORITY_COLUMNS: ColumnsType<AlertRuleRecord> = [
+const PRIORITY_COLUMNS: ColumnsType<AlertRule> = [
   {
     title: 'Escopo',
     dataIndex: 'scope',
@@ -82,10 +84,7 @@ const PRIORITY_COLUMNS: ColumnsType<AlertRuleRecord> = [
 
 export interface AlertRulePrecedenceCardProps {
   equipments: Equipment[];
-  inspectedEquipmentId: string | undefined;
-  inspectingLoading: boolean;
-  inspectedRules: AlertRuleRecord[];
-  onInspectEquipment: (eqId: string | undefined) => void;
+  initialEquipmentId?: string;
   title?: string;
   selectPlaceholder?: string;
   emptyDescription?: string;
@@ -94,15 +93,31 @@ export interface AlertRulePrecedenceCardProps {
 
 export default function AlertRulePrecedenceCard({
   equipments,
-  inspectedEquipmentId,
-  inspectingLoading,
-  inspectedRules,
-  onInspectEquipment,
+  initialEquipmentId,
   title = 'Simulador de Precedência Efetiva por Equipamento',
   selectPlaceholder = 'Selecione uma câmara fria...',
   emptyDescription = 'Selecione um equipamento acima para visualizar quais regras vencem e quais ficam sombreadas.',
   noRulesDescription = 'Nenhuma regra aplicável a este equipamento.',
 }: AlertRulePrecedenceCardProps) {
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null | undefined>(
+    undefined
+  );
+  const inspectedEquipmentId =
+    selectedEquipmentId === undefined ? initialEquipmentId : (selectedEquipmentId ?? undefined);
+
+  const inspectedRulesQuery = useQuery<AlertRule[]>({
+    queryKey: ['alert-rules', 'inspect', inspectedEquipmentId ?? null],
+    enabled: Boolean(inspectedEquipmentId),
+    queryFn: async () => {
+      if (!inspectedEquipmentId) return [];
+      const res = await getEquipmentAlertRules(inspectedEquipmentId);
+      return res?.applicable_rules || [];
+    },
+  });
+
+  const inspectedRules = inspectedEquipmentId ? (inspectedRulesQuery.data ?? []) : [];
+  const inspectingLoading = inspectedRulesQuery.isFetching;
+
   return (
     <Card
       size="small"
@@ -115,7 +130,7 @@ export default function AlertRulePrecedenceCard({
           style={{ width: 280 }}
           placeholder={selectPlaceholder}
           value={inspectedEquipmentId}
-          onChange={onInspectEquipment}
+          onChange={(val) => setSelectedEquipmentId(val ?? null)}
           options={equipments.map((eq) => ({
             value: eq.id,
             label: `${eq.serial} — ${eq.branch_name || 'Filial'}`,
@@ -132,7 +147,7 @@ export default function AlertRulePrecedenceCard({
       ) : inspectedRules.length === 0 ? (
         <Empty description={noRulesDescription} />
       ) : (
-        <Table<AlertRuleRecord>
+        <Table<AlertRule>
           rowKey="id"
           columns={PRIORITY_COLUMNS}
           dataSource={inspectedRules}

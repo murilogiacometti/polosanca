@@ -12,16 +12,30 @@ from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import contains_eager, joinedload
 
 from app import db
+from app.enums import AuditEntityType
 from app.models import (
     Alert,
-    AlertSeverity,
     AlertStatus,
     Branch,
     Equipment,
     User,
     UserRole,
 )
-from app.schemas import AlertAcknowledgeSchema, validate_request_schema
+from app.schemas import (
+    Alert as AlertResponse,
+)
+from app.schemas import (
+    AlertAcknowledgeRequest,
+    AlertsListResponse,
+    AlertsQuery,
+    AlertStatisticsQuery,
+    AlertStatisticsResponse,
+    Error,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
+)
 from app.utils import (
     clamp_pagination,
     format_csv_row,
@@ -33,7 +47,6 @@ from app.utils import (
 )
 
 alerts_bp = Blueprint("alerts", __name__)
-_alert_acknowledge_schema = AlertAcknowledgeSchema()
 
 
 class _FilterableQuery(Protocol):
@@ -91,36 +104,50 @@ def _apply_alert_date_filters(query: _Q, start_date: str | None, end_date: str |
     return query, None
 
 
-def _apply_alert_filters(query: _Q, user: User, args: Mapping[str, str]) -> tuple[_Q | None, str | None]:
-    """Apply tenant/branch RBAC and query-string filters to an Alert+Equipment joined query."""
-    query = _apply_alert_rbac_scope(query, user, args.get("company_id"))
+def _parse_alerts_query(args: Mapping[str, str]) -> tuple[AlertsQuery | None, str | None, str | None]:
+    """Validate AlertsQuery parameters while deferring comma-separated status to _apply_alert_status_filter."""
+    raw_status = args.get("status")
+    query_params, q_err = validate_query_model(
+        AlertsQuery,
+        {k: v for k, v in args.items() if k != "status"},
+    )
+    return query_params, raw_status, q_err
 
-    equipment_id = args.get("equipment_id")
-    if equipment_id:
-        query = query.filter(Alert.equipment_id == equipment_id)
 
-    branch_id = args.get("branch_id")
-    if branch_id:
-        query = query.filter(Equipment.branch_id == branch_id)
+def _apply_alert_filters(
+    query: _Q,
+    user: User,
+    query_params: AlertsQuery,
+    raw_status: str | None,
+) -> tuple[_Q | None, str | None]:
+    """Apply tenant/branch RBAC and validated query-string filters to an Alert+Equipment joined query."""
+    query = _apply_alert_rbac_scope(query, user, query_params.company_id)
 
-    status = args.get("status")
-    if status:
-        filtered_query, err = _apply_alert_status_filter(query, status)
+    if query_params.equipment_id:
+        query = query.filter(Alert.equipment_id == query_params.equipment_id)
+
+    if query_params.branch_id:
+        query = query.filter(Equipment.branch_id == query_params.branch_id)
+
+    if raw_status:
+        filtered_query, err = _apply_alert_status_filter(query, raw_status)
         if err or filtered_query is None:
             return None, err
         query = filtered_query
 
-    severity = args.get("severity")
-    if severity:
-        try:
-            query = query.filter(Alert.severity == AlertSeverity(severity))
-        except ValueError:
-            return None, "Invalid severity filter"
+    if query_params.severity is not None:
+        query = query.filter(Alert.severity == query_params.severity)
 
-    return _apply_alert_date_filters(query, args.get("start_date"), args.get("end_date"))
+    return _apply_alert_date_filters(query, query_params.start_date, query_params.end_date)
 
 
 @alerts_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List alerts",
+    tags=["Alerts"],
+    query_params=AlertsQuery,
+    responses={200: AlertsListResponse},
+)
 @jwt_required()
 def get_alerts() -> tuple[Response, int]:
     """Get alerts with single-query Equipment eager loading, tenant/branch scoping, and pagination."""
@@ -129,20 +156,22 @@ def get_alerts() -> tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
+    query_params, raw_status, q_err = _parse_alerts_query(request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
 
     base_query = Alert.query.join(Alert.equipment).options(contains_eager(Alert.equipment))
-    query, filter_err = _apply_alert_filters(base_query, user, request.args)
+    query, filter_err = _apply_alert_filters(base_query, user, query_params, raw_status)
     if filter_err or query is None:
         return jsonify({"error": filter_err or "Invalid filter"}), 400
 
     query = query.order_by(Alert.created_at.desc())
     alerts = query.paginate(page=page, per_page=limit, error_out=False)
 
-    return jsonify(
+    return json_response(
+        AlertsListResponse,
         {
             "alerts": [a.to_dict() for a in alerts.items],
             "pagination": {
@@ -151,11 +180,18 @@ def get_alerts() -> tuple[Response, int]:
                 "total": alerts.total,
                 "total_pages": alerts.pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @alerts_bp.route("/export", methods=["GET"])
+@openapi_meta(
+    summary="Export alerts as CSV",
+    tags=["Alerts"],
+    query_params=AlertsQuery,
+    responses={200: "text/csv"},
+)
 @jwt_required()
 def export_alerts_csv() -> Response | tuple[Response, int]:
     """Stream filtered alerts as text/csv using yield_per server-side cursors."""
@@ -164,12 +200,16 @@ def export_alerts_csv() -> Response | tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
+    query_params, raw_status, q_err = _parse_alerts_query(request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
     base_query = (
         db.session.query(Alert, Equipment.serial, Equipment.branch_id, Branch.name)
         .join(Equipment, Alert.equipment_id == Equipment.id)
         .join(Branch, Equipment.branch_id == Branch.id)
     )
-    query, filter_err = _apply_alert_filters(base_query, user, request.args)
+    query, filter_err = _apply_alert_filters(base_query, user, query_params, raw_status)
     if filter_err or query is None:
         return jsonify({"error": filter_err or "Invalid filter"}), 400
 
@@ -227,6 +267,12 @@ def export_alerts_csv() -> Response | tuple[Response, int]:
 
 
 @alerts_bp.route("/statistics", methods=["GET"])
+@openapi_meta(
+    summary="Get active alert statistics",
+    tags=["Alerts"],
+    query_params=AlertStatisticsQuery,
+    responses={200: AlertStatisticsResponse},
+)
 @jwt_required()
 def get_alert_statistics() -> tuple[Response, int]:
     """Active alert counts grouped by severity and rule type, scoped to caller permissions."""
@@ -234,6 +280,10 @@ def get_alert_statistics() -> tuple[Response, int]:
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
+
+    query_params, q_err = validate_query_model(AlertStatisticsQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
 
     query = (
         db.session.query(
@@ -245,22 +295,13 @@ def get_alert_statistics() -> tuple[Response, int]:
         .filter(Alert.status == AlertStatus.ACTIVE)
     )
 
-    company_id = request.args.get("company_id")
-    if user.role != UserRole.GLOBAL_ADMIN:
-        query = query.filter(Equipment.company_id == user.company_id)
-        allowed_branches = get_allowed_branch_ids(user)
-        if allowed_branches is not None:
-            query = query.filter(Equipment.branch_id.in_(allowed_branches))
-    elif company_id:
-        query = query.filter(Equipment.company_id == company_id)
+    query = _apply_alert_rbac_scope(query, user, query_params.company_id)
 
-    branch_id = request.args.get("branch_id")
-    if branch_id:
-        query = query.filter(Equipment.branch_id == branch_id)
+    if query_params.branch_id:
+        query = query.filter(Equipment.branch_id == query_params.branch_id)
 
-    equipment_id = request.args.get("equipment_id")
-    if equipment_id:
-        query = query.filter(Alert.equipment_id == equipment_id)
+    if query_params.equipment_id:
+        query = query.filter(Alert.equipment_id == query_params.equipment_id)
 
     rows = query.group_by(Alert.severity, Alert.type).all()
 
@@ -274,16 +315,23 @@ def get_alert_statistics() -> tuple[Response, int]:
         by_severity[sev.value] = by_severity.get(sev.value, 0) + count_int
         by_type[rtype.value] = by_type.get(rtype.value, 0) + count_int
 
-    return jsonify(
+    return json_response(
+        AlertStatisticsResponse,
         {
             "total_active": total_active,
             "by_severity": by_severity,
             "by_type": by_type,
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @alerts_bp.route("/<alert_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get alert details",
+    tags=["Alerts"],
+    responses={200: AlertResponse},
+)
 @jwt_required()
 def get_alert(alert_id: str) -> tuple[Response, int]:
     """Get a specific alert with tenant and branch access checks."""
@@ -303,10 +351,16 @@ def get_alert(alert_id: str) -> tuple[Response, int]:
         if allowed_branches is not None and alert.equipment.branch_id not in allowed_branches:
             return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(alert.to_dict()), 200
+    return json_response(AlertResponse, alert.to_dict(), 200)
 
 
 @alerts_bp.route("/<alert_id>/acknowledge", methods=["POST"])
+@openapi_meta(
+    summary="Acknowledge alert",
+    tags=["Alerts"],
+    request_body=AlertAcknowledgeRequest,
+    responses={200: AlertResponse, 409: Error},
+)
 @jwt_required()
 def acknowledge_alert(alert_id: str) -> tuple[Response, int]:
     """Acknowledge an active alert (Global Admin or owning Company Admin)."""
@@ -329,7 +383,7 @@ def acknowledge_alert(alert_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Cannot acknowledge an already resolved alert"}), 409
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_alert_acknowledge_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(AlertAcknowledgeRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
     old_status = alert.status.value
@@ -337,12 +391,12 @@ def acknowledge_alert(alert_id: str) -> tuple[Response, int]:
     alert.status = AlertStatus.ACKNOWLEDGED
     alert.acknowledged_at = utc_now()
     alert.acknowledged_by = user.id
-    alert.acknowledgment_notes = data.get("notes")
+    alert.acknowledgment_notes = data.notes
 
     record_audit_log(
         user_id=user.id,
         action="acknowledge_alert",
-        entity_type="alert",
+        entity_type=AuditEntityType.ALERT,
         entity_id=alert.id,
         changes={
             "status": {"old": old_status, "new": AlertStatus.ACKNOWLEDGED.value},
@@ -351,10 +405,15 @@ def acknowledge_alert(alert_id: str) -> tuple[Response, int]:
     )
     db.session.commit()
 
-    return jsonify(alert.to_dict()), 200
+    return json_response(AlertResponse, alert.to_dict(), 200)
 
 
 @alerts_bp.route("/<alert_id>/resolve", methods=["POST"])
+@openapi_meta(
+    summary="Resolve alert",
+    tags=["Alerts"],
+    responses={200: AlertResponse},
+)
 @jwt_required()
 def resolve_alert(alert_id: str) -> tuple[Response, int]:
     """Resolve an alert and atomically recompute Equipment.status under SELECT ... FOR UPDATE."""
@@ -390,10 +449,10 @@ def resolve_alert(alert_id: str) -> tuple[Response, int]:
     record_audit_log(
         user_id=user.id,
         action="resolve_alert",
-        entity_type="alert",
+        entity_type=AuditEntityType.ALERT,
         entity_id=alert.id,
         changes={"status": {"old": old_status, "new": AlertStatus.RESOLVED.value}},
     )
     db.session.commit()
 
-    return jsonify(alert.to_dict()), 200
+    return json_response(AlertResponse, alert.to_dict(), 200)

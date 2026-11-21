@@ -51,13 +51,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff pip-audit pyrefly
+          pip install ruff pip-audit pyrefly PyYAML jsonschema
 
       - name: Ruff lint & security rules (Bandit S-rules)
-        run: ruff check app tests config.py run.py init_db.py celery_worker.py
+        run: ruff check app tests scripts config.py run.py init_db.py celery_worker.py
+
+      - name: Verify generated openapi.yaml is up to date with Pydantic models
+        run: python scripts/generate_openapi.py --check
 
       - name: Mypy static type check
-        run: mypy app
+        run: mypy app scripts/generate_openapi.py
 
       - name: Pyrefly static type check
         run: pyrefly check app

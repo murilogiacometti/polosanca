@@ -1,10 +1,9 @@
 import { Button, Card, Col, Modal, Row, Spin, Statistic } from 'antd';
 import { SEMANTIC_HEX } from '../../theme/tokens';
-import type { AlertRuleStatistics } from '../../types/models';
-import type { AlertRuleRecord } from './AlertRuleModalForm';
+import type { AlertRule, AlertRuleStatistics } from '../../types/models';
 
 export interface AlertRuleStatsModalProps {
-  rule: AlertRuleRecord | null;
+  rule: AlertRule | null;
   loading: boolean;
   stats: AlertRuleStatistics | null;
   onClose: () => void;

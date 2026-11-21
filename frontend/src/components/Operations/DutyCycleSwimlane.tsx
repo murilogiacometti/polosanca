@@ -78,7 +78,7 @@ const TRACKS: readonly TrackConfig[] = [
 ];
 
 const isSignalActive = (val: DoorRawState | BinaryRawState): boolean =>
-  val === 1 || val === 'on' || val === 'open' || val === true;
+  val === 'on' || val === 'open';
 
 export interface DutyCycleSwimlaneProps {
   data?: SwimlaneDataPoint[];

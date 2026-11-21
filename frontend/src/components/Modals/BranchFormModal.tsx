@@ -2,19 +2,8 @@ import { useState } from 'react';
 import { App as AntdApp, Button, Form, Input, Modal, Select, Space } from 'antd';
 import { createBranch, updateBranch } from '../../api';
 import { useSuspendShortcuts } from '../../context/uiShellContextObject';
-import type { Branch, Company, CreateBranchPayload, UpdateBranchPayload } from '../../types/models';
+import type { Branch, Company, CreateBranchPayload } from '../../types/models';
 import { extractApiError } from '../../utils/formatters';
-
-interface BranchWithContact extends Branch {
-  manager_contact?: string | null;
-}
-
-interface BranchWritePayload extends CreateBranchPayload, UpdateBranchPayload {
-  name: string;
-  address: string;
-  manager_contact?: string | null;
-  company_id?: string;
-}
 
 interface BranchFormValues {
   company_id?: string;
@@ -24,7 +13,7 @@ interface BranchFormValues {
 }
 
 interface BranchFormBodyProps {
-  branch?: BranchWithContact | null;
+  branch?: Branch | null;
   companies?: Company[];
   isGlobalAdmin?: boolean;
   defaultCompanyId?: string;
@@ -51,7 +40,7 @@ function BranchFormBody({
   const handleFinish = async (values: BranchFormValues): Promise<void> => {
     setSaving(true);
     try {
-      const payload: BranchWritePayload = {
+      const payload: CreateBranchPayload = {
         name: values.name.trim(),
         address: values.address.trim(),
         manager_contact: values.manager_contact?.trim() || null,
@@ -136,7 +125,7 @@ function BranchFormBody({
 
 export interface BranchFormModalProps {
   open: boolean;
-  branch?: BranchWithContact | null;
+  branch?: Branch | null;
   companies?: Company[];
   isGlobalAdmin?: boolean;
   defaultCompanyId?: string | null;

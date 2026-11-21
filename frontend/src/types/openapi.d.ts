@@ -4,519 +4,404 @@
  */
 
 export interface paths {
-    "/auth/login": {
+    "/alert-rules": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List alert rules */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                    scope?: components["schemas"]["AlertRuleScope"] | null;
+                    equipment_id?: string | null;
+                    rule_type?: components["schemas"]["AlertRuleType"] | null;
+                    is_active?: boolean | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertRulesListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
-        /**
-         * User login
-         * @description Authenticate an active user and issue JWT `access_token` and `refresh_token`.
-         */
-        post: operations["login"];
+        /** Create alert rule */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AlertRuleCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertRule"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/logout": {
+    "/alert-rules/{rule_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /**
-         * User logout
-         * @description Revoke current JWT JTI in Redis blocklist until expiration.
-         */
-        post: operations["logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+        /** Get alert rule details */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertRule"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
         };
-        get?: never;
-        put?: never;
-        /**
-         * Refresh access token
-         * @description Issue a new `access_token` using a valid `refresh_token` in the `Authorization` header.
-         */
-        post: operations["refreshToken"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get current user profile
-         * @description Return the currently authenticated user's profile and branch access scope.
-         */
-        get: operations["getCurrentUser"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete alert rule */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
-        /**
-         * Update current user profile
-         * @description Update the authenticated user's own `name`.
-         */
-        patch: operations["updateCurrentUser"];
+        /** Update alert rule */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AlertRuleUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertRule"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
-    "/auth/change-password": {
+    "/alert-rules/{rule_id}/statistics": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Change current user password */
-        post: operations["changePassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/forgot-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+        /** Get alert rule trigger statistics */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertRuleStatisticsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
         };
-        get?: never;
-        put?: never;
-        /**
-         * Request password reset email
-         * @description Sends a 1-hour single-use reset token if the email matches an active user. Always returns `200 OK` to prevent email enumeration.
-         */
-        post: operations["forgotPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset password with token
-         * @description Redeem a valid 1-hour password reset token and set a new password.
-         */
-        post: operations["resetPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List users
-         * @description List users scoped to caller permissions (Global Admin all; Company Admin own company only).
-         */
-        get: operations["listUsers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Invite a new user
-         * @description Create a `pending` user and send a 7-day single-use invitation link. Company Admins invite into their own company (`company_admin` or `company_viewer`); Global Admins can invite into any company or invite new `global_admin` users (`company_id: null`).
-         */
-        post: operations["inviteUser"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/accept-invitation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept user invitation
-         * @description Redeem a 7-day invitation token, set initial password, and transition user status from `pending` to `active`.
-         */
-        post: operations["acceptInvitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get user details
-         * @description Retrieve user details including `branch_access` (Global Admin or owning Company Admin).
-         */
-        get: operations["getUser"];
-        put?: never;
-        post?: never;
-        /**
-         * Deactivate or anonymize user
-         * @description Soft-deactivate user (`status = inactive`) or anonymize PII per LGPD while preserving historical foreign keys (Global Admin or owning Company Admin).
-         */
-        delete: operations["deleteUser"];
-        options?: never;
-        head?: never;
-        /**
-         * Update user
-         * @description Update user name, status, role, or viewer branch permissions (Global Admin, or owning Company Admin without escalating to `global_admin`).
-         */
-        patch: operations["updateUser"];
-        trace?: never;
-    };
-    "/users/{user_id}/resend-invitation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Resend user invitation
-         * @description Issue a fresh 7-day token and resend the invitation email for a `pending` user (Global Admin or owning Company Admin).
-         */
-        post: operations["resendInvitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/companies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List companies
-         * @description List all tenant companies (Global Admin only).
-         */
-        get: operations["listCompanies"];
-        put?: never;
-        /**
-         * Create company
-         * @description Create a new tenant company (Global Admin only).
-         */
-        post: operations["createCompany"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/companies/{company_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get company details
-         * @description Get company profile (Global Admin, or Company users for their own company).
-         */
-        get: operations["getCompany"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update company
-         * @description Update company profile (Global Admin or own Company Admin; `status` changes restricted to Global Admin).
-         */
-        patch: operations["updateCompany"];
-        trace?: never;
-    };
-    "/branches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List branches
-         * @description List branches filtered by tenant and viewer branch restrictions.
-         */
-        get: operations["listBranches"];
-        put?: never;
-        /**
-         * Create branch
-         * @description Create a branch (Global Admin specifies `company_id`; Company Admin creates within own company).
-         */
-        post: operations["createBranch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/branches/{branch_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get branch details
-         * @description Get branch details (enforces company ownership and viewer branch restriction).
-         */
-        get: operations["getBranch"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete branch
-         * @description Delete branch (Global Admin or owning Company Admin). Returns `409 Conflict` if equipment is still assigned or if deletion would leave a restricted viewer with zero assigned branches.
-         */
-        delete: operations["deleteBranch"];
-        options?: never;
-        head?: never;
-        /**
-         * Update branch
-         * @description Update branch details (Global Admin or owning Company Admin).
-         */
-        patch: operations["updateBranch"];
-        trace?: never;
-    };
-    "/equipments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List equipment
-         * @description List equipment filtered by tenant and viewer branch permissions.
-         */
-        get: operations["listEquipment"];
-        put?: never;
-        /**
-         * Register new equipment
-         * @description Register equipment in a branch (Global Admin or owning Company Admin). Derives `company_id` from `branch_id`, generates a secure API key, stores its `SHA-256` hash, and returns the plaintext `api_key` once.
-         */
-        post: operations["createEquipment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/equipments/{equipment_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get equipment details
-         * @description Get equipment metadata, latest readings, and maintenance dates (never exposes `api_key`).
-         */
-        get: operations["getEquipment"];
-        put?: never;
-        post?: never;
-        /**
-         * Deactivate equipment
-         * @description Deactivate equipment (Global Admin or owning Company Admin).
-         */
-        delete: operations["deleteEquipment"];
-        options?: never;
-        head?: never;
-        /**
-         * Update equipment
-         * @description Update equipment metadata or branch assignment within the same company (Global Admin or owning Company Admin).
-         */
-        patch: operations["updateEquipment"];
-        trace?: never;
-    };
-    "/equipments/{equipment_id}/rotate-api-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rotate equipment API key
-         * @description Generate a new API key, store its `SHA-256` hash (invalidating the previous key immediately), and return the new plaintext `api_key` once (Global Admin or owning Company Admin).
-         */
-        post: operations["rotateEquipmentApiKey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/equipments/telemetry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit hardware telemetry data
-         * @description Ingest a single 7-metric hardware reading (`application/json` or `application/x-www-form-urlencoded`). Supports optional idempotency deduplication via `Idempotency-Key` header or `request_id` body field (AIP-155). Captures server UTC receipt timestamp (`source = "device"`), updates `last_seen_at`, transitions `offline` to `operational` if no active alerts exist, and enqueues Celery rule evaluation.
-         */
-        post: operations["submitTelemetry"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/equipments/{equipment_id}/telemetry/manual": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Log manual offline temperature reading
-         * @description Record a manual thermometer temperature reading when equipment status is `offline` (Global Admin or owning Company Admin). Tags `source = "manual"` and `recorded_by = current_user.id`, leaves `pressure` and component states `null`, and keeps equipment status `offline`.
-         */
-        post: operations["submitManualTelemetry"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/equipments/{equipment_id}/telemetry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get historical telemetry data
-         * @description Retrieve historical telemetry (`device` and `manual` entries) for accessible equipment.
-         */
-        get: operations["getEquipmentTelemetry"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/equipments/{equipment_id}/telemetry/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export equipment telemetry as CSV
-         * @description Stream historical telemetry (`device` and `manual` entries) as `text/csv` for accessible equipment. `interval=raw` is capped at a maximum 90-day date range per download (`400 Bad Request` if exceeded); `1hour` and `1day` aggregates support up to 2 years.
-         */
-        get: operations["exportEquipmentTelemetryCsv"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/telemetry/realtime": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get latest snapshot for accessible equipment
-         * @description Used by the dashboard's 30-second HTTP polling loop.
-         */
-        get: operations["getRealtimeTelemetry"];
         put?: never;
         post?: never;
         delete?: never;
@@ -532,11 +417,73 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List alerts
-         * @description List alerts scoped by user tenant and viewer branch permissions.
-         */
-        get: operations["listAlerts"];
+        /** List alerts */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    equipment_id?: string | null;
+                    status?: (components["schemas"]["AlertStatus"] | "active,acknowledged") | null;
+                    severity?: components["schemas"]["AlertSeverity"] | null;
+                    start_date?: string | null;
+                    end_date?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertsListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -552,11 +499,73 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Export alerts as CSV
-         * @description Download filtered alerts as `text/csv` (scoped by tenant and branch permissions).
-         */
-        get: operations["exportAlertsCsv"];
+        /** Export alerts as CSV */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    equipment_id?: string | null;
+                    status?: (components["schemas"]["AlertStatus"] | "active,acknowledged") | null;
+                    severity?: components["schemas"]["AlertSeverity"] | null;
+                    start_date?: string | null;
+                    end_date?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -572,11 +581,67 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get alert statistics
-         * @description Active alert counts grouped by severity and rule type (scoped by user permissions).
-         */
-        get: operations["getAlertStatistics"];
+        /** Get active alert statistics */
+        get: {
+            parameters: {
+                query?: {
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    equipment_id?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertStatisticsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -593,7 +658,64 @@ export interface paths {
             cookie?: never;
         };
         /** Get alert details */
-        get: operations["getAlert"];
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    alert_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Alert"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -611,11 +733,78 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Acknowledge an alert
-         * @description Acknowledge an active alert with optional notes (Global Admin or owning Company Admin; custom state-transition action per AIP-136).
-         */
-        post: operations["acknowledgeAlert"];
+        /** Acknowledge alert */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    alert_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AlertAcknowledgeRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Alert"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -631,67 +820,1810 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Manually resolve an alert
-         * @description Mark an alert as resolved (Global Admin or owning Company Admin; custom state-transition action per AIP-136).
-         */
-        post: operations["resolveAlert"];
+        /** Resolve alert */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    alert_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Alert"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/alert-rules": {
+    "/audit-logs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List alert rules
-         * @description Global Admins view all rules; Company Admins have read-only access to `global` rules plus rules scoped to their company or its equipment.
-         */
-        get: operations["listAlertRules"];
-        put?: never;
-        /**
-         * Create alert rule
-         * @description Create a generic alert rule (Global Admin only). `threshold_value` and `comparison_operator` are required for numeric rules (`temperature_*`, `pressure_*`) and `null` for `door_open` and `equipment_offline`.
-         */
-        post: operations["createAlertRule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/alert-rules/{rule_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+        /** List audit logs */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    page_size?: number | null;
+                    page_token?: string | null;
+                    user_id?: string | null;
+                    entity_type?: components["schemas"]["AuditEntityType"] | null;
+                    entity_id?: string | null;
+                    action?: string | null;
+                    start_date?: string | null;
+                    end_date?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditLogsListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
         };
-        /**
-         * Get alert rule details
-         * @description Get rule details (Global Admin, or Company Admin if rule applies to their company/equipment).
-         */
-        get: operations["getAlertRule"];
         put?: never;
         post?: never;
-        /**
-         * Delete alert rule
-         * @description Delete an alert rule (Global Admin only; returns `204 No Content` per AIP-135).
-         */
-        delete: operations["deleteAlertRule"];
+        delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Update alert rule
-         * @description Update an alert rule (Global Admin only).
-         */
-        patch: operations["updateAlertRule"];
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change authenticated user password */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangePasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request password reset email */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ForgotPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authenticate user and issue JWT tokens */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LoginRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LoginResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke current JWT token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get current authenticated user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update current user profile */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ProfileUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh access token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RefreshResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset password with reset token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResetPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List branches */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BranchesListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a new branch */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BranchCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Branch"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches/{branch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get branch by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    branch_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Branch"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete branch */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    branch_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update branch */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    branch_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BranchUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Branch"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List companies */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    status?: components["schemas"]["CompanyStatus"] | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompaniesListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a new company */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CompanyCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Company"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/companies/{company_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get company by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    company_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Company"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Deactivate company */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    company_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeactivateCompanyResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update company */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    company_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CompanyUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Company"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/equipments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List equipments */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    type?: components["schemas"]["EquipmentType"] | null;
+                    status?: components["schemas"]["EquipmentStatus"] | null;
+                    search?: string | null;
+                    include_inactive?: boolean | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentsListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Register new equipment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EquipmentCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentCreated"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest hardware telemetry reading */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["HardwareTelemetryRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HardwareTelemetryResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/{equipment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get equipment details */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Deactivate equipment */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update equipment */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EquipmentUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/equipments/{equipment_id}/alert-rules": {
@@ -701,31 +2633,65 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get applicable alert rules for equipment
-         * @description List all rules applicable to a specific equipment unit ordered by priority per `(rule_type, severity)` pair (accessible to Global Admin, owning Company Admin, and permitted Company Viewers).
-         */
-        get: operations["getEquipmentAlertRules"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/alert-rules/{rule_id}/statistics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+        /** List alert rules applicable to equipment */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentAlertRulesResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
         };
-        /**
-         * Get alert rule trigger statistics
-         * @description Trigger counts for a rule (Global Admin only).
-         */
-        get: operations["getAlertRuleStatistics"];
         put?: never;
         post?: never;
         delete?: never;
@@ -741,17 +2707,454 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get equipment maintenance logbook
-         * @description Paginated maintenance records for accessible equipment.
-         */
-        get: operations["getMaintenanceRecords"];
+        /** List maintenance records for equipment */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                };
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MaintenanceRecordsListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
-        /**
-         * Log maintenance activity
-         * @description Create a maintenance record and sync `last_maintenance_date` / `next_maintenance_date` on the equipment (Global Admin or owning Company Admin).
-         */
-        post: operations["createMaintenanceRecord"];
+        /** Create maintenance record */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MaintenanceCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MaintenanceRecord"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/{equipment_id}/rotate-api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate equipment API key */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RotateApiKeyResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/{equipment_id}/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get historical equipment telemetry */
+        get: {
+            parameters: {
+                query?: {
+                    start_date?: string | null;
+                    end_date?: string | null;
+                    interval?: components["schemas"]["TelemetryInterval"] | null;
+                    page?: number | null;
+                    limit?: number | null;
+                    page_size?: number | null;
+                    page_token?: string | null;
+                    fields?: string | null;
+                };
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TelemetryHistoryResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/{equipment_id}/telemetry/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export equipment telemetry as CSV */
+        get: {
+            parameters: {
+                query?: {
+                    start_date?: string | null;
+                    end_date?: string | null;
+                    interval?: components["schemas"]["TelemetryInterval"] | null;
+                };
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/equipments/{equipment_id}/telemetry/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log manual temperature reading */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    equipment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ManualTelemetryRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManualTelemetryResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -765,38 +3168,886 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get maintenance record */
-        get: operations["getMaintenanceRecord"];
+        /** Get maintenance record details */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    record_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MaintenanceRecord"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
-        /**
-         * Delete maintenance record
-         * @description Delete a maintenance record (Global Admin or owning Company Admin).
-         */
-        delete: operations["deleteMaintenanceRecord"];
+        /** Delete maintenance record */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    record_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
-        /**
-         * Update maintenance record
-         * @description Update a maintenance record (Global Admin or owning Company Admin).
-         */
-        patch: operations["updateMaintenanceRecord"];
+        /** Update maintenance record */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    record_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MaintenanceUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MaintenanceRecord"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
-    "/audit-logs": {
+    "/telemetry/overview": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Query administrative audit logs
-         * @description List immutable administrative audit events (Global Admin only).
-         */
-        get: operations["listAuditLogs"];
+        /** Get 24h telemetry sparklines and thresholds */
+        get: {
+            parameters: {
+                query?: {
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    equipment_ids?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TelemetryOverviewResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/telemetry/realtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get real-time equipment telemetry */
+        get: {
+            parameters: {
+                query?: {
+                    company_id?: string | null;
+                    branch_id?: string | null;
+                    equipment_ids?: string | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RealtimeTelemetryListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List users */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | null;
+                    limit?: number | null;
+                    company_id?: string | null;
+                    role?: components["schemas"]["UserRole"] | null;
+                    status?: components["schemas"]["UserStatus"] | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UsersListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a new user directly */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/accept-invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept user invitation */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInvitationRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invite a new user */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserInviteResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get user details */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Deactivate user */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update user */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/users/{user_id}/resend-invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend user invitation */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResendInvitationResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -807,2013 +4058,1050 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        User: {
-            id?: string;
-            name?: string;
-            /** Format: email */
-            email?: string;
-            /** @enum {string} */
-            role?: "global_admin" | "company_admin" | "company_viewer";
+        AcceptInvitationRequest: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
+        Alert: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /**
+             * Alert Rule Id
+             * Format: uuid
+             */
+            alert_rule_id?: string | null;
+            /** Serial */
+            serial?: string | null;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id?: string | null;
+            /**
+             * Company Id
+             * Format: uuid
+             */
             company_id?: string | null;
-            branch_access?: components["schemas"]["BranchAccess"];
-            /** @enum {string} */
-            status?: "active" | "inactive" | "pending";
-            /** Format: date-time */
-            created_at?: string;
-            /** Format: date-time */
-            last_login_at?: string | null;
+            type: components["schemas"]["AlertRuleType"];
+            severity: components["schemas"]["AlertSeverity"];
+            /** Message */
+            message: string;
+            status: components["schemas"]["AlertStatus"];
+            /**
+             * Acknowledged At
+             * Format: date-time
+             */
+            acknowledged_at?: string | null;
+            /**
+             * Acknowledged By
+             * Format: uuid
+             */
+            acknowledged_by?: string | null;
+            /** Acknowledgment Notes */
+            acknowledgment_notes?: string | null;
+            /**
+             * Resolved At
+             * Format: date-time
+             */
+            resolved_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+        };
+        AlertAcknowledgeRequest: {
+            /** Notes */
+            notes?: string | null;
+        };
+        AlertRule: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            rule_type: components["schemas"]["AlertRuleType"];
+            /** Threshold Value */
+            threshold_value?: number | null;
+            comparison_operator?: components["schemas"]["ComparisonOperator"] | null;
+            /** Duration Seconds */
+            duration_seconds: number;
+            severity: components["schemas"]["AlertSeverity"];
+            /** Message Template */
+            message_template?: string | null;
+            scope: components["schemas"]["AlertRuleScope"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string | null;
+            /** Priority */
+            priority?: number | null;
+            /** Is Effective */
+            is_effective?: boolean | null;
+        };
+        AlertRuleCreateRequest: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            rule_type: components["schemas"]["AlertRuleType"];
+            /** Threshold Value */
+            threshold_value?: number | null;
+            comparison_operator?: components["schemas"]["ComparisonOperator"] | null;
+            /**
+             * Duration Seconds
+             * @default 300
+             */
+            duration_seconds: number;
+            severity: components["schemas"]["AlertSeverity"];
+            /** Message Template */
+            message_template?: string | null;
+            scope: components["schemas"]["AlertRuleScope"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /** @enum {string} */
+        AlertRuleScope: "global" | "company" | "equipment";
+        AlertRuleStatisticsResponse: {
+            /**
+             * Rule Id
+             * Format: uuid
+             */
+            rule_id: string;
+            /** Total Triggers */
+            total_triggers: number;
+            /** Triggers Last 30 Days */
+            triggers_last_30_days: number;
+            /** Affected Equipments */
+            affected_equipments: number;
+            /** Avg Triggers Per Equipment */
+            avg_triggers_per_equipment: number;
+        };
+        /** @enum {string} */
+        AlertRuleType: "temperature_high" | "temperature_low" | "pressure_high" | "pressure_low" | "door_open" | "equipment_offline";
+        AlertRuleUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Threshold Value */
+            threshold_value?: number | null;
+            comparison_operator?: components["schemas"]["ComparisonOperator"] | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            severity?: components["schemas"]["AlertSeverity"] | null;
+            /** Message Template */
+            message_template?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        AlertRulesListResponse: {
+            /** Alert Rules */
+            alert_rules: components["schemas"]["AlertRule"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        /** @enum {string} */
+        AlertSeverity: "warning" | "critical";
+        AlertSeverityCounts: {
+            /**
+             * Warning
+             * @default 0
+             */
+            warning: number;
+            /**
+             * Critical
+             * @default 0
+             */
+            critical: number;
+        };
+        AlertStatisticsResponse: {
+            /** Total Active */
+            total_active: number;
+            by_severity?: components["schemas"]["AlertSeverityCounts"];
+            /** By Type */
+            by_type?: {
+                [key: string]: number;
+            };
+        };
+        /** @enum {string} */
+        AlertStatus: "active" | "acknowledged" | "resolved";
+        AlertsListResponse: {
+            /** Alerts */
+            alerts: components["schemas"]["Alert"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        /** @enum {string} */
+        AuditEntityType: "company" | "branch" | "user" | "equipment" | "alert" | "alert_rule" | "maintenance_record";
+        AuditLog: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id?: string | null;
+            /** Action */
+            action: string;
+            entity_type: components["schemas"]["AuditEntityType"];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id?: string | null;
+            /** Changes */
+            changes?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ip Address */
+            ip_address?: string | null;
+            /** User Agent */
+            user_agent?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+        };
+        AuditLogsListResponse: {
+            /** Audit Logs */
+            audit_logs: components["schemas"]["AuditLog"][];
+            /** Next Page Token */
+            next_page_token?: string | null;
+            pagination: components["schemas"]["Pagination"];
+        };
+        /** @enum {string} */
+        BinaryDeviceState: "on" | "off";
+        Branch: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id: string;
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Manager Contact */
+            manager_contact?: string | null;
+            /** Equipment Count */
+            equipment_count?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string | null;
         };
         BranchAccess: {
-            /** @enum {string} */
-            type: "full" | "restricted";
-            /** @description Assigned branch IDs (minimum 1 required when `type = restricted`) */
+            type: components["schemas"]["BranchAccessType"];
+            /** Branches */
+            branches?: string[] | null;
+        };
+        BranchAccessInput: {
+            type?: components["schemas"]["BranchAccessType"] | null;
+            /** Branches */
             branches?: string[];
         };
-        Company: {
-            id?: string;
-            name?: string;
-            /** @enum {string} */
-            status?: "active" | "inactive";
-            branches_count?: number;
-            equipment_count?: number;
-            contact_email?: string | null;
-            contact_phone?: string | null;
-            /** Format: date-time */
-            created_at?: string;
-        };
-        Branch: {
-            id?: string;
-            name?: string;
-            address?: string;
+        /** @enum {string} */
+        BranchAccessType: "full" | "restricted";
+        BranchCreateRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            /**
+             * Address
+             * @default
+             */
+            address: string;
+            /** Manager Contact */
             manager_contact?: string | null;
-            company_id?: string;
-            equipment_count?: number;
-            /** Format: date-time */
-            created_at?: string;
         };
+        BranchUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Manager Contact */
+            manager_contact?: string | null;
+        };
+        BranchesListResponse: {
+            /** Branches */
+            branches: components["schemas"]["Branch"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        ChangePasswordRequest: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        CompaniesListResponse: {
+            /** Companies */
+            companies: components["schemas"]["Company"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        Company: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            status: components["schemas"]["CompanyStatus"];
+            /** Branches Count */
+            branches_count?: number | null;
+            /** Equipment Count */
+            equipment_count?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string | null;
+        };
+        CompanyCreateRequest: {
+            /** Name */
+            name: string;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+        };
+        /** @enum {string} */
+        CompanyStatus: "active" | "inactive";
+        CompanyUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            status?: components["schemas"]["CompanyStatus"] | null;
+        };
+        /** @enum {string} */
+        ComparisonOperator: ">" | "<" | "=" | ">=" | "<=";
+        DeactivateCompanyResponse: {
+            /** Message */
+            message: string;
+            status: components["schemas"]["CompanyStatus"];
+        };
+        /** @enum {string} */
+        DoorState: "open" | "closed";
         Equipment: {
-            id?: string;
-            serial?: string;
-            /** @enum {string} */
-            type?: "freezer" | "refrigerator" | "cold_room";
-            company_id?: string;
-            branch_id?: string;
-            branch_name?: string;
-            /** @enum {string} */
-            status?: "operational" | "warning" | "critical" | "offline";
-            is_active?: boolean;
-            current_data?: components["schemas"]["CurrentData"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Serial */
+            serial: string;
+            type: components["schemas"]["EquipmentType"];
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /** Branch Name */
+            branch_name?: string | null;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id: string;
+            /** Manufacturer */
             manufacturer?: string | null;
+            /** Model */
             model?: string | null;
-            /** Format: date-time */
+            status: components["schemas"]["EquipmentStatus"];
+            /** Is Active */
+            is_active: boolean;
+            current_data?: components["schemas"]["EquipmentCurrentData"] | null;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at?: string | null;
+            /**
+             * Installed At
+             * Format: date-time
+             */
             installed_at?: string | null;
-            /** Format: date */
+            /**
+             * Last Maintenance Date
+             * Format: date
+             */
             last_maintenance_date?: string | null;
-            /** Format: date */
+            /**
+             * Next Maintenance Date
+             * Format: date
+             */
             next_maintenance_date?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
         };
-        EquipmentCreated: components["schemas"]["Equipment"] & {
-            /** @description Plaintext API key returned only once upon creation */
+        EquipmentAlertRulesResponse: {
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /** Applicable Rules */
+            applicable_rules: components["schemas"]["AlertRule"][];
+        };
+        EquipmentCreateRequest: {
+            /** Serial */
+            serial: string;
+            type: components["schemas"]["EquipmentType"];
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Installed At */
+            installed_at?: string | null;
+        };
+        EquipmentCreated: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Serial */
+            serial: string;
+            type: components["schemas"]["EquipmentType"];
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /** Branch Name */
+            branch_name?: string | null;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id: string;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Model */
+            model?: string | null;
+            status: components["schemas"]["EquipmentStatus"];
+            /** Is Active */
+            is_active: boolean;
+            current_data?: components["schemas"]["EquipmentCurrentData"] | null;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at?: string | null;
+            /**
+             * Installed At
+             * Format: date-time
+             */
+            installed_at?: string | null;
+            /**
+             * Last Maintenance Date
+             * Format: date
+             */
+            last_maintenance_date?: string | null;
+            /**
+             * Next Maintenance Date
+             * Format: date
+             */
+            next_maintenance_date?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+            /** Api Key */
             api_key: string;
         };
-        CurrentData: {
-            /** Format: float */
-            temperature?: number;
-            /** Format: float */
+        EquipmentCurrentData: {
+            /** Temperature */
+            temperature?: number | null;
+            /** Pressure */
             pressure?: number | null;
-            /** @enum {string|null} */
-            door?: "open" | "closed" | null;
-            /** @enum {string|null} */
-            heater?: "on" | "off" | null;
-            /** @enum {string|null} */
-            compressor?: "on" | "off" | null;
-            /** @enum {string|null} */
-            fan?: "on" | "off" | null;
-            /** Format: date-time */
-            last_update?: string;
-        } | null;
-        TelemetryData: {
-            /** @example EQ-12345 */
+            door?: components["schemas"]["DoorState"] | null;
+            heater?: components["schemas"]["BinaryDeviceState"] | null;
+            compressor?: components["schemas"]["BinaryDeviceState"] | null;
+            fan?: components["schemas"]["BinaryDeviceState"] | null;
+            /**
+             * Last Update
+             * Format: date-time
+             */
+            last_update?: string | null;
+        };
+        /** @enum {string} */
+        EquipmentStatus: "operational" | "warning" | "critical" | "offline";
+        /** @enum {string} */
+        EquipmentType: "freezer" | "refrigerator" | "cold_room";
+        EquipmentUpdateRequest: {
+            type?: components["schemas"]["EquipmentType"] | null;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Installed At */
+            installed_at?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        EquipmentsListResponse: {
+            /** Equipment */
+            equipment: components["schemas"]["Equipment"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        Error: {
+            /** Error */
+            error: string;
+            /** Message */
+            message?: string | null;
+            /** Equipment Count */
+            equipment_count?: number | null;
+        };
+        ForgotPasswordRequest: {
+            /** Email */
+            email: string;
+        };
+        HardwareTelemetryRequest: {
+            /** Serial */
             serial: string;
-            /**
-             * Format: float
-             * @description Temperature in Celsius (°C)
-             * @example 4.5
-             */
+            /** Temperature */
             temperature: number;
-            /**
-             * Format: float
-             * @description Gauge pressure in kilopascals (kPa)
-             * @example 120.3
-             */
+            /** Pressure */
             pressure: number;
             /**
-             * @description 0=closed, 1=open
+             * Door
              * @enum {integer}
              */
             door: 0 | 1;
             /**
-             * @description 0=off, 1=on
+             * Heater
              * @enum {integer}
              */
             heater: 0 | 1;
             /**
-             * @description 0=off, 1=on
+             * Compressor
              * @enum {integer}
              */
             compressor: 0 | 1;
             /**
-             * @description 0=off, 1=on
+             * Fan
              * @enum {integer}
              */
             fan: 0 | 1;
-            /** @description Optional client-generated idempotency key (AIP-155) to deduplicate retried hardware submissions per equipment unit */
+            /** Request Id */
             request_id?: string | null;
         };
-        TelemetryDataPoint: {
-            /** Format: date-time */
-            timestamp?: string;
-            /** Format: float */
-            temperature?: number;
-            /** Format: float */
-            pressure?: number | null;
-            door?: number | null;
-            heater?: number | null;
-            compressor?: number | null;
-            fan?: number | null;
-            /** @enum {string} */
-            source?: "device" | "manual";
-            recorded_by?: string | null;
-            notes?: string | null;
-        };
-        RealtimeTelemetry: {
-            equipment_id?: string;
-            serial?: string;
-            branch_id?: string;
-            temperature?: number | null;
-            pressure?: number | null;
-            /** @enum {string|null} */
-            door?: "open" | "closed" | null;
-            /** @enum {string|null} */
-            heater?: "on" | "off" | null;
-            /** @enum {string|null} */
-            compressor?: "on" | "off" | null;
-            /** @enum {string|null} */
-            fan?: "on" | "off" | null;
-            /** @enum {string} */
-            status?: "operational" | "warning" | "critical" | "offline";
-            /** Format: date-time */
-            last_update?: string | null;
-        };
-        Alert: {
-            id?: string;
-            equipment_id?: string;
-            serial?: string;
-            branch_id?: string;
-            /** @enum {string} */
-            type?: "temperature_high" | "temperature_low" | "pressure_high" | "pressure_low" | "door_open" | "equipment_offline";
-            /** @enum {string} */
-            severity?: "warning" | "critical";
-            message?: string;
-            /** @enum {string} */
-            status?: "active" | "acknowledged" | "resolved";
-            /** Format: date-time */
-            created_at?: string;
-            /** Format: date-time */
-            acknowledged_at?: string | null;
-            acknowledged_by?: string | null;
-            /** Format: date-time */
-            resolved_at?: string | null;
-        };
-        AlertRule: {
-            id?: string;
-            name?: string;
-            description?: string | null;
-            /** @enum {string} */
-            rule_type?: "temperature_high" | "temperature_low" | "pressure_high" | "pressure_low" | "door_open" | "equipment_offline";
-            threshold_value?: number | null;
-            /** @enum {string|null} */
-            comparison_operator?: ">" | "<" | "=" | ">=" | "<=" | null;
-            duration_seconds?: number;
-            /** @enum {string} */
-            severity?: "warning" | "critical";
-            message_template?: string | null;
-            /** @enum {string} */
-            scope?: "global" | "company" | "equipment";
-            scope_id?: string | null;
-            is_active?: boolean;
-            created_by?: string;
-            /** Format: date-time */
-            created_at?: string;
-            /** Format: date-time */
-            updated_at?: string;
-        };
-        AlertRuleCreate: {
-            name: string;
-            description?: string;
-            /** @enum {string} */
-            rule_type: "temperature_high" | "temperature_low" | "pressure_high" | "pressure_low" | "door_open" | "equipment_offline";
-            /** @description Required for numeric rules; null for `door_open` and `equipment_offline` */
-            threshold_value?: number | null;
+        HardwareTelemetryResponse: {
+            /** Success */
+            success: boolean;
+            /** Message */
+            message: string;
             /**
-             * @description Required for numeric rules; null for `door_open` and `equipment_offline`
-             * @enum {string|null}
+             * Timestamp
+             * Format: date-time
              */
-            comparison_operator?: ">" | "<" | "=" | ">=" | "<=" | null;
-            /** @default 300 */
-            duration_seconds: number;
-            /** @enum {string} */
-            severity: "warning" | "critical";
-            message_template?: string;
-            /** @enum {string} */
-            scope: "global" | "company" | "equipment";
-            scope_id?: string | null;
-            /** @default true */
-            is_active: boolean;
+            timestamp: string;
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /** Deduplicated */
+            deduplicated?: boolean | null;
         };
-        AlertRuleWithPriority: components["schemas"]["AlertRule"] & {
-            /** @description Rule priority (1=equipment, 2=company, 3=global) */
-            priority?: number;
-            /** @description True if not shadowed by a higher-priority rule for the same `(rule_type, severity)` */
-            is_effective?: boolean;
+        LoginRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
-        MaintenanceRecord: {
-            id?: string;
-            equipment_id?: string;
-            /** @enum {string} */
-            type?: "routine_inspection" | "repair" | "part_replacement" | "emergency_fix";
-            description?: string;
-            performed_by?: string;
-            /** Format: date-time */
-            performed_at?: string;
+        LoginResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token: string;
+            user: components["schemas"]["User"];
+        };
+        MaintenanceCreateRequest: {
+            type: components["schemas"]["MaintenanceType"];
+            /** Description */
+            description: string;
+            /** Performed By */
+            performed_by: string;
+            /** Performed At */
+            performed_at?: string | null;
+            /** Notes */
             notes?: string | null;
-            /** Format: date */
+            /** Next Maintenance Date */
             next_maintenance_date?: string | null;
         };
-        AuditLog: {
-            id?: string;
-            user_id?: string | null;
-            action?: string;
-            entity_type?: string;
-            entity_id?: string | null;
-            changes?: Record<string, never> | null;
-            ip_address?: string | null;
-            user_agent?: string | null;
-            /** Format: date-time */
-            created_at?: string;
+        MaintenanceRecord: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            type: components["schemas"]["MaintenanceType"];
+            /** Description */
+            description: string;
+            /** Performed By */
+            performed_by: string;
+            /**
+             * Performed At
+             * Format: date-time
+             */
+            performed_at?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Next Maintenance Date
+             * Format: date
+             */
+            next_maintenance_date?: string | null;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+        };
+        MaintenanceRecordsListResponse: {
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /** Maintenance Records */
+            maintenance_records: components["schemas"]["MaintenanceRecord"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        /** @enum {string} */
+        MaintenanceType: "preventive" | "routine_inspection" | "repair" | "part_replacement" | "calibration" | "cleaning" | "emergency" | "emergency_fix" | "other";
+        MaintenanceUpdateRequest: {
+            type?: components["schemas"]["MaintenanceType"] | null;
+            /** Description */
+            description?: string | null;
+            /** Performed By */
+            performed_by?: string | null;
+            /** Performed At */
+            performed_at?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Next Maintenance Date */
+            next_maintenance_date?: string | null;
+        };
+        ManualTelemetryRequest: {
+            /** Temperature */
+            temperature: number;
+            /** Recorded At */
+            recorded_at?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        ManualTelemetryResponse: {
+            /** Success */
+            success: boolean;
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+            /** Temperature */
+            temperature: number;
+            source: components["schemas"]["TelemetrySource"];
+            /**
+             * Recorded By
+             * Format: uuid
+             */
+            recorded_by: string;
+            /** Notes */
+            notes?: string | null;
+        };
+        MessageResponse: {
+            /** Success */
+            success?: boolean | null;
+            /** Message */
+            message: string;
+        };
+        OverviewSparklinePoint: {
+            /**
+             * T
+             * Format: date-time
+             */
+            t: string;
+            /** V */
+            v: number;
         };
         Pagination: {
-            page?: number;
-            limit?: number;
-            total?: number;
-            total_pages?: number;
+            /** Page */
+            page: number;
+            /** Limit */
+            limit: number;
+            /** Total */
+            total: number;
+            /** Total Pages */
+            total_pages: number;
         };
-        SuccessResponse: {
-            success?: boolean;
-            message?: string;
+        ProfileUpdateRequest: {
+            /** Name */
+            name: string;
         };
-        ErrorResponse: {
-            error?: string;
-            message?: string;
-            details?: Record<string, never>;
+        RealtimeTelemetry: {
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /** Serial */
+            serial: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id: string;
+            status: components["schemas"]["EquipmentStatus"];
+            /** Temperature */
+            temperature?: number | null;
+            /** Pressure */
+            pressure?: number | null;
+            door?: components["schemas"]["DoorState"] | null;
+            heater?: components["schemas"]["BinaryDeviceState"] | null;
+            compressor?: components["schemas"]["BinaryDeviceState"] | null;
+            fan?: components["schemas"]["BinaryDeviceState"] | null;
+            /**
+             * Last Update
+             * Format: date-time
+             */
+            last_update?: string | null;
+        };
+        RealtimeTelemetryListResponse: {
+            /** Equipment */
+            equipment: components["schemas"]["RealtimeTelemetry"][];
+        };
+        RefreshResponse: {
+            /** Access Token */
+            access_token: string;
+        };
+        ResendInvitationResponse: {
+            /** Success */
+            success: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Invitation Sent */
+            invitation_sent: boolean;
+            /** Message */
+            message: string;
+        };
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /** New Password */
+            new_password: string;
+        };
+        RotateApiKeyResponse: {
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /** Api Key */
+            api_key: string;
+        };
+        TelemetryDataPoint: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string | null;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string | null;
+            /**
+             * Time
+             * Format: date-time
+             */
+            time?: string | null;
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id?: string | null;
+            /** Temperature */
+            temperature?: number | null;
+            /** Min Temperature */
+            min_temperature?: number | null;
+            /** Max Temperature */
+            max_temperature?: number | null;
+            /** Pressure */
+            pressure?: number | null;
+            door?: components["schemas"]["DoorState"] | null;
+            heater?: components["schemas"]["BinaryDeviceState"] | null;
+            compressor?: components["schemas"]["BinaryDeviceState"] | null;
+            fan?: components["schemas"]["BinaryDeviceState"] | null;
+            source?: components["schemas"]["TelemetrySource"] | null;
+            /**
+             * Recorded By
+             * Format: uuid
+             */
+            recorded_by?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Sample Count */
+            sample_count?: number | null;
+        };
+        TelemetryHistoryResponse: {
+            /**
+             * Equipment Id
+             * Format: uuid
+             */
+            equipment_id: string;
+            /** Serial */
+            serial?: string | null;
+            interval: components["schemas"]["TelemetryInterval"];
+            /** Count */
+            count: number;
+            /** Data */
+            data: components["schemas"]["TelemetryDataPoint"][];
+            /** Next Page Token */
+            next_page_token?: string | null;
+            pagination?: components["schemas"]["Pagination"] | null;
+        };
+        /** @enum {string} */
+        TelemetryInterval: "raw" | "5min" | "1hour" | "1day";
+        TelemetryOverviewEntry: {
+            /** Sparkline 24H */
+            sparkline_24h: components["schemas"]["OverviewSparklinePoint"][];
+            threshold?: components["schemas"]["ThresholdBounds"] | null;
+        };
+        TelemetryOverviewResponse: {
+            /** Overview */
+            overview: {
+                [key: string]: components["schemas"]["TelemetryOverviewEntry"];
+            };
+        };
+        /** @enum {string} */
+        TelemetrySource: "device" | "manual";
+        ThresholdBounds: {
+            /** Low */
+            low?: number | null;
+            /** High */
+            high?: number | null;
+            /** Label */
+            label?: string | null;
+        };
+        User: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            role: components["schemas"]["UserRole"];
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            status: components["schemas"]["UserStatus"];
+            branch_access_type: components["schemas"]["BranchAccessType"];
+            branch_access?: components["schemas"]["BranchAccess"] | null;
+            /**
+             * Last Login At
+             * Format: date-time
+             */
+            last_login_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string | null;
+        };
+        UserCreateRequest: {
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            role: components["schemas"]["UserRole"];
+            /** Password */
+            password: string;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            /** @default full */
+            branch_access_type: components["schemas"]["BranchAccessType"];
+            /** Branch Ids */
+            branch_ids?: string[];
+        };
+        UserInviteRequest: {
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            role: components["schemas"]["UserRole"];
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            branch_access?: components["schemas"]["BranchAccessInput"] | null;
+        };
+        UserInviteResponse: {
+            /** Success */
+            success: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Invitation Sent */
+            invitation_sent: boolean;
+            user: components["schemas"]["User"];
+            /** Message */
+            message: string;
+        };
+        /** @enum {string} */
+        UserRole: "global_admin" | "company_admin" | "company_viewer";
+        /** @enum {string} */
+        UserStatus: "active" | "inactive" | "pending";
+        UserUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Email */
+            email?: string | null;
+            role?: components["schemas"]["UserRole"] | null;
+            /**
+             * Company Id
+             * Format: uuid
+             */
+            company_id?: string | null;
+            status?: components["schemas"]["UserStatus"] | null;
+            branch_access?: components["schemas"]["BranchAccessInput"] | null;
+        };
+        UsersListResponse: {
+            /** Users */
+            users: components["schemas"]["User"][];
+            pagination: components["schemas"]["Pagination"];
         };
     };
-    responses: {
-        /** @description Bad Request - Invalid input */
-        BadRequest: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Unauthorized - Authentication required or failed */
-        Unauthorized: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Forbidden - Insufficient permissions or inactive account/tenant */
-        Forbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Not Found - Resource not found */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Conflict - Resource state or uniqueness conflict */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Too Many Requests - Rate limit exceeded */
-        TooManyRequests: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-    };
-    parameters: {
-        PageParam: number;
-        /** @description Opaque URL-safe base64 keyset cursor returned as `next_page_token` by the previous page (AIP-158). When supplied, overrides `page` offset pagination for O(1) index seeks. */
-        PageTokenParam: string;
-        LimitParam: number;
-        UserIdParam: string;
-        BranchIdParam: string;
-        EquipmentIdParam: string;
-        AlertIdParam: string;
-        RuleIdParam: string;
-        RecordIdParam: string;
-    };
+    responses: never;
+    parameters: never;
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export interface operations {
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /**
-                     * Format: email
-                     * @example user@example.com
-                     */
-                    email: string;
-                    /**
-                     * Format: password
-                     * @example secure_password
-                     */
-                    password: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Login successful */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        access_token: string;
-                        refresh_token: string;
-                        user: components["schemas"]["User"];
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            429: components["responses"]["TooManyRequests"];
-        };
-    };
-    logout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Logout successful */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    refreshToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Access token refreshed */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        access_token: string;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    getCurrentUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Current user profile */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    updateCurrentUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Profile updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    changePassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: password */
-                    current_password: string;
-                    /** Format: password */
-                    new_password: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Password changed successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    forgotPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: email */
-                    email: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Reset instructions dispatched if account exists */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-        };
-    };
-    resetPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    token: string;
-                    /** Format: password */
-                    new_password: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Password reset successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-        };
-    };
-    listUsers: {
-        parameters: {
-            query?: {
-                /** @description Filter by company (Global Admin only) */
-                company_id?: string;
-                role?: "global_admin" | "company_admin" | "company_viewer";
-                status?: "active" | "inactive" | "pending";
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated user list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        users?: components["schemas"]["User"][];
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    inviteUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                    /** Format: email */
-                    email: string;
-                    /** @enum {string} */
-                    role: "global_admin" | "company_admin" | "company_viewer";
-                    company_id?: string | null;
-                    branch_access?: components["schemas"]["BranchAccess"];
-                };
-            };
-        };
-        responses: {
-            /** @description User invited successfully */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success?: boolean;
-                        user_id?: string;
-                        invitation_sent?: boolean;
-                        user?: components["schemas"]["User"];
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    acceptInvitation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    token: string;
-                    /** Format: password */
-                    password: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Account activated successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-        };
-    };
-    getUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: components["parameters"]["UserIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description User details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: components["parameters"]["UserIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description User deactivated successfully */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: components["parameters"]["UserIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                    /** @enum {string} */
-                    status?: "active" | "inactive";
-                    /** @enum {string} */
-                    role?: "global_admin" | "company_admin" | "company_viewer";
-                    branch_access?: components["schemas"]["BranchAccess"];
-                };
-            };
-        };
-        responses: {
-            /** @description User updated successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    resendInvitation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: components["parameters"]["UserIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Invitation resent */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listCompanies: {
-        parameters: {
-            query?: {
-                status?: "active" | "inactive";
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated company list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        companies?: components["schemas"]["Company"][];
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    createCompany: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                    /** Format: email */
-                    contact_email?: string;
-                    contact_phone?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Company created successfully */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Company"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getCompany: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                company_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Company details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Company"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateCompany: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                company_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                    /** Format: email */
-                    contact_email?: string;
-                    contact_phone?: string;
-                    /** @enum {string} */
-                    status?: "active" | "inactive";
-                };
-            };
-        };
-        responses: {
-            /** @description Company updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Company"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listBranches: {
-        parameters: {
-            query?: {
-                /** @description Filter by company (Global Admin only; auto-scoped for Company users) */
-                company_id?: string;
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated branch list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        branches?: components["schemas"]["Branch"][];
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createBranch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Required for Global Admin; inferred for Company Admin */
-                    company_id?: string;
-                    name: string;
-                    address: string;
-                    manager_contact?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Branch created successfully */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Branch"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getBranch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branch_id: components["parameters"]["BranchIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Branch details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Branch"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteBranch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branch_id: components["parameters"]["BranchIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Branch deleted successfully */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateBranch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branch_id: components["parameters"]["BranchIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                    address?: string;
-                    manager_contact?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Branch updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Branch"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listEquipment: {
-        parameters: {
-            query?: {
-                /** @description Filter by company (Global Admin only) */
-                company_id?: string;
-                branch_id?: string;
-                type?: "freezer" | "refrigerator" | "cold_room";
-                status?: "operational" | "warning" | "critical" | "offline";
-                /** @description Substring search on equipment `serial` */
-                search?: string;
-                /** @description Include soft-deactivated (`is_active = false`) equipment (default false) */
-                include_inactive?: boolean;
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated equipment list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment: components["schemas"]["Equipment"][];
-                        pagination: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createEquipment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    serial: string;
-                    /** @enum {string} */
-                    type: "freezer" | "refrigerator" | "cold_room";
-                    branch_id: string;
-                    manufacturer?: string;
-                    model?: string;
-                    /** Format: date-time */
-                    installed_at?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Equipment registered (plaintext `api_key` returned once) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipmentCreated"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getEquipment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Equipment details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Equipment"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteEquipment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Equipment deactivated */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateEquipment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    type?: "freezer" | "refrigerator" | "cold_room";
-                    branch_id?: string;
-                    manufacturer?: string;
-                    model?: string;
-                    /** Format: date-time */
-                    installed_at?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Equipment updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Equipment"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    rotateEquipmentApiKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description API key rotated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment_id: string;
-                        api_key: string;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    submitTelemetry: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional client-generated idempotency key (1–128 chars) to safely retry telemetry submissions without creating duplicate rows (AIP-155). Must match `request_id` if both are supplied. */
-                "Idempotency-Key"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TelemetryData"];
-                "application/x-www-form-urlencoded": components["schemas"]["TelemetryData"];
-            };
-        };
-        responses: {
-            /** @description Data received successfully (or replayed idempotently when `deduplicated = true`) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        message: string;
-                        /** Format: date-time */
-                        timestamp: string;
-                        record_id: string;
-                        /** @description Present and `true` when an identical `request_id` / `Idempotency-Key` was already processed for this equipment unit */
-                        deduplicated?: boolean;
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-        };
-    };
-    submitManualTelemetry: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /**
-                     * Format: float
-                     * @example 4.8
-                     */
-                    temperature: number;
-                    /**
-                     * Format: date-time
-                     * @description Optional observed UTC timestamp; defaults to server UTC time
-                     */
-                    recorded_at?: string;
-                    notes?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Manual temperature reading recorded */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                        message: string;
-                        /** Format: date-time */
-                        timestamp: string;
-                        record_id: string;
-                        /** @enum {string} */
-                        source: "manual";
-                        recorded_by: string;
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getEquipmentTelemetry: {
-        parameters: {
-            query?: {
-                start_date?: string;
-                end_date?: string;
-                interval?: "raw" | "5min" | "1hour" | "1day";
-                /** @description Comma-separated list of fields to include */
-                fields?: string;
-                page?: components["parameters"]["PageParam"];
-                /** @description Opaque URL-safe base64 keyset cursor returned as `next_page_token` by the previous page (AIP-158). When supplied, overrides `page` offset pagination for O(1) index seeks. */
-                page_token?: components["parameters"]["PageTokenParam"];
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Historical telemetry data */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment_id: string;
-                        serial: string;
-                        count: number;
-                        data: components["schemas"]["TelemetryDataPoint"][];
-                        /** @description Opaque keyset cursor for the next page (AIP-158); `null` when no further results exist */
-                        next_page_token?: string | null;
-                        pagination: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    exportEquipmentTelemetryCsv: {
-        parameters: {
-            query?: {
-                start_date?: string;
-                end_date?: string;
-                interval?: "raw" | "5min" | "1hour" | "1day";
-            };
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Streamed CSV file download */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getRealtimeTelemetry: {
-        parameters: {
-            query?: {
-                branch_id?: string;
-                /** @description Comma-separated list of equipment IDs */
-                equipment_ids?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Latest equipment snapshots */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment: components["schemas"]["RealtimeTelemetry"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    listAlerts: {
-        parameters: {
-            query?: {
-                equipment_id?: string;
-                branch_id?: string;
-                status?: "active" | "acknowledged" | "resolved";
-                severity?: "warning" | "critical";
-                start_date?: string;
-                end_date?: string;
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated alert list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        alerts?: components["schemas"]["Alert"][];
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    exportAlertsCsv: {
-        parameters: {
-            query?: {
-                equipment_id?: string;
-                branch_id?: string;
-                status?: "active" | "acknowledged" | "resolved";
-                severity?: "warning" | "critical";
-                start_date?: string;
-                end_date?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSV file download */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    getAlertStatistics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Alert statistics */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        total_active?: number;
-                        by_severity?: {
-                            warning?: number;
-                            critical?: number;
-                        };
-                        by_type?: {
-                            [key: string]: number;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    getAlert: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                alert_id: components["parameters"]["AlertIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Alert details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Alert"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    acknowledgeAlert: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                alert_id: components["parameters"]["AlertIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    notes?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Alert acknowledged */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Alert"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    resolveAlert: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                alert_id: components["parameters"]["AlertIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Alert resolved */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Alert"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listAlertRules: {
-        parameters: {
-            query?: {
-                scope?: "global" | "company" | "equipment";
-                /** @description Filter by company (Global Admin only) */
-                company_id?: string;
-                equipment_id?: string;
-                rule_type?: "temperature_high" | "temperature_low" | "pressure_high" | "pressure_low" | "door_open" | "equipment_offline";
-                is_active?: boolean;
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated alert rules */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        alert_rules?: components["schemas"]["AlertRule"][];
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    createAlertRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AlertRuleCreate"];
-            };
-        };
-        responses: {
-            /** @description Alert rule created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlertRule"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    getAlertRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: components["parameters"]["RuleIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Alert rule details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlertRule"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteAlertRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: components["parameters"]["RuleIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Alert rule deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateAlertRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: components["parameters"]["RuleIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                    description?: string;
-                    threshold_value?: number | null;
-                    /** @enum {string|null} */
-                    comparison_operator?: ">" | "<" | "=" | ">=" | "<=" | null;
-                    duration_seconds?: number;
-                    /** @enum {string} */
-                    severity?: "warning" | "critical";
-                    message_template?: string;
-                    is_active?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description Alert rule updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlertRule"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getEquipmentAlertRules: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Applicable rules with effective status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment_id?: string;
-                        applicable_rules?: components["schemas"]["AlertRuleWithPriority"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getAlertRuleStatistics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: components["parameters"]["RuleIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Rule statistics */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        rule_id?: string;
-                        total_triggers?: number;
-                        triggers_last_30_days?: number;
-                        affected_equipments?: number;
-                        avg_triggers_per_equipment?: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getMaintenanceRecords: {
-        parameters: {
-            query?: {
-                page?: components["parameters"]["PageParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated maintenance history */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        equipment_id: string;
-                        maintenance_records: components["schemas"]["MaintenanceRecord"][];
-                        pagination: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    createMaintenanceRecord: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                equipment_id: components["parameters"]["EquipmentIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    type: "routine_inspection" | "repair" | "part_replacement" | "emergency_fix";
-                    description: string;
-                    performed_by: string;
-                    notes?: string | null;
-                    /** Format: date */
-                    next_maintenance_date?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Maintenance record created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MaintenanceRecord"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getMaintenanceRecord: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: components["parameters"]["RecordIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Maintenance record details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MaintenanceRecord"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteMaintenanceRecord: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: components["parameters"]["RecordIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Maintenance record deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateMaintenanceRecord: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: components["parameters"]["RecordIdParam"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    type?: "routine_inspection" | "repair" | "part_replacement" | "emergency_fix";
-                    description?: string;
-                    performed_by?: string;
-                    notes?: string | null;
-                    /** Format: date */
-                    next_maintenance_date?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Maintenance record updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MaintenanceRecord"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listAuditLogs: {
-        parameters: {
-            query?: {
-                user_id?: string;
-                entity_type?: string;
-                entity_id?: string;
-                action?: string;
-                start_date?: string;
-                end_date?: string;
-                page?: components["parameters"]["PageParam"];
-                /** @description Opaque URL-safe base64 keyset cursor returned as `next_page_token` by the previous page (AIP-158). When supplied, overrides `page` offset pagination for O(1) index seeks. */
-                page_token?: components["parameters"]["PageTokenParam"];
-                limit?: components["parameters"]["LimitParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated audit logs */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        audit_logs?: components["schemas"]["AuditLog"][];
-                        /** @description Opaque keyset cursor for the next page (AIP-158); `null` when no further results exist */
-                        next_page_token?: string | null;
-                        pagination?: components["schemas"]["Pagination"];
-                    };
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-}
+export type operations = Record<string, never>;

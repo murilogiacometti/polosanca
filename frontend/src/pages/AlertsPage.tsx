@@ -797,7 +797,7 @@ export default function AlertsPage({ headerNav = null, onJumpToRules }: AlertsPa
       }
       return {
         alerts: res?.alerts || [],
-        pagination: res?.pagination || { page, limit: 20, total: 0 },
+        pagination: res?.pagination || { page, limit: 20, total: 0, total_pages: 0 },
         alertStats: statsRes || EMPTY_ALERT_STATS,
         realtimeById: rtMap,
       };
@@ -808,7 +808,7 @@ export default function AlertsPage({ headerNav = null, onJumpToRules }: AlertsPa
   });
 
   const alerts = useMemo(() => alertsQuery.data?.alerts ?? [], [alertsQuery.data]);
-  const pagination = alertsQuery.data?.pagination ?? { page, limit: 20, total: 0 };
+  const pagination = alertsQuery.data?.pagination ?? { page, limit: 20, total: 0, total_pages: 0 };
   const alertStats = alertsQuery.data?.alertStats ?? EMPTY_ALERT_STATS;
   const realtimeById = alertsQuery.data?.realtimeById ?? {};
   const loading = alertsQuery.isPending;

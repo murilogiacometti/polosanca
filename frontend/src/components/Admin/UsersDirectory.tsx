@@ -55,7 +55,6 @@ import type {
   StatusTone,
   UpdateUserPayload,
   User,
-  UserBranchAccessPayload,
   UserRole,
   UserStatus,
 } from '../../types/models';
@@ -68,9 +67,7 @@ import {
 import WorkspaceSkeleton from '../Common/WorkspaceSkeleton';
 import { PageHeader, RowActionMenu, SearchPill, StatusPill } from '../ui';
 
-interface UserRecord extends User {
-  branch_access?: UserBranchAccessPayload | null;
-}
+type UserRecord = User;
 
 interface ExtendedUpdateUserPayload extends UpdateUserPayload {
   email?: string;
@@ -1130,7 +1127,7 @@ export default function UsersDirectory({
       const res = await getUsers(userParams);
       return {
         users: res?.users || [],
-        pagination: res?.pagination || { page: 1, limit: 20, total: 0 },
+        pagination: res?.pagination || { page: 1, limit: 20, total: 0, total_pages: 0 },
       };
     },
     placeholderData: keepPreviousData,
@@ -1142,7 +1139,7 @@ export default function UsersDirectory({
   );
   const companies = useMemo(() => auxiliaryQuery.data?.companies ?? [], [auxiliaryQuery.data]);
   const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data]);
-  const pagination = usersQuery.data?.pagination ?? { page: 1, limit: 20, total: 0 };
+  const pagination = usersQuery.data?.pagination ?? { page: 1, limit: 20, total: 0, total_pages: 0 };
   const loading = usersQuery.isFetching;
 
   const fetchUsers = async (): Promise<void> => {

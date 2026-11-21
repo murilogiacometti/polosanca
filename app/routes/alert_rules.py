@@ -4,7 +4,6 @@ CRUD operations for alert rules (Global Admin write; Company Admin read-only vis
 """
 
 from datetime import timedelta
-from decimal import Decimal
 from typing import TypeVar
 
 from flask import Blueprint, Response, jsonify, request
@@ -14,6 +13,7 @@ from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app import db
+from app.enums import AuditEntityType
 from app.models import (
     Alert,
     AlertRule,
@@ -26,16 +26,22 @@ from app.models import (
     UserRole,
 )
 from app.schemas import (
-    AlertRuleCreateSchema,
-    AlertRuleUpdatePayload,
-    AlertRuleUpdateSchema,
-    validate_request_schema,
+    AlertRule as AlertRuleResponse,
+)
+from app.schemas import (
+    AlertRuleCreateRequest,
+    AlertRulesListResponse,
+    AlertRulesQuery,
+    AlertRuleStatisticsResponse,
+    AlertRuleUpdateRequest,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
 )
 from app.utils import clamp_pagination, record_audit_log, utc_now
 
 alert_rules_bp = Blueprint("alert_rules", __name__)
-_alert_rule_create_schema = AlertRuleCreateSchema()
-_alert_rule_update_schema = AlertRuleUpdateSchema()
 
 NON_NUMERIC_RULE_TYPES = {AlertRuleType.DOOR_OPEN, AlertRuleType.EQUIPMENT_OFFLINE}
 _Q = TypeVar("_Q", bound=Query)
@@ -90,52 +96,36 @@ def _apply_alert_rule_tenant_filter(
     return query, None
 
 
-def _parse_is_active_filter(is_active_filter: str) -> tuple[bool | None, tuple[Response, int] | None]:
-    """Parse boolean query parameter for is_active filter."""
-    normalized_active = is_active_filter.strip().lower()
-    if normalized_active in ("true", "1", "yes"):
-        return True, None
-    if normalized_active in ("false", "0", "no"):
-        return False, None
-    return None, (jsonify({"error": "Invalid is_active filter"}), 400)
-
-
 def _apply_alert_rule_query_filters(
     query: _Q,
-    scope_filter: str | None,
-    equipment_id_filter: str | None,
-    rule_type_filter: str | None,
-    is_active_filter: str | None,
-) -> tuple[_Q | None, tuple[Response, int] | None]:
-    """Apply optional scope, equipment, rule_type, and is_active filters to an AlertRule query."""
-    if scope_filter:
-        try:
-            query = query.filter(AlertRule.scope == AlertRuleScope(scope_filter))
-        except ValueError:
-            return None, (jsonify({"error": "Invalid scope filter"}), 400)
+    query_params: AlertRulesQuery,
+) -> _Q:
+    """Apply validated optional scope, equipment, rule_type, and is_active filters to an AlertRule query."""
+    if query_params.scope is not None:
+        query = query.filter(AlertRule.scope == query_params.scope)
 
-    if equipment_id_filter:
+    if query_params.equipment_id:
         query = query.filter(
             AlertRule.scope == AlertRuleScope.EQUIPMENT,
-            AlertRule.scope_id == equipment_id_filter,
+            AlertRule.scope_id == query_params.equipment_id,
         )
 
-    if rule_type_filter:
-        try:
-            query = query.filter(AlertRule.rule_type == AlertRuleType(rule_type_filter))
-        except ValueError:
-            return None, (jsonify({"error": "Invalid rule_type filter"}), 400)
+    if query_params.rule_type is not None:
+        query = query.filter(AlertRule.rule_type == query_params.rule_type)
 
-    if is_active_filter is not None:
-        is_active_val, err = _parse_is_active_filter(is_active_filter)
-        if err:
-            return None, err
-        query = query.filter(AlertRule.is_active.is_(is_active_val))
+    if query_params.is_active is not None:
+        query = query.filter(AlertRule.is_active.is_(query_params.is_active))
 
-    return query, None
+    return query
 
 
 @alert_rules_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List alert rules",
+    tags=["Alert Rules"],
+    query_params=AlertRulesQuery,
+    responses={200: AlertRulesListResponse},
+)
 @jwt_required()
 def get_alert_rules() -> tuple[Response, int]:
     """
@@ -151,31 +141,23 @@ def get_alert_rules() -> tuple[Response, int]:
     if user.role == UserRole.COMPANY_VIEWER:
         return jsonify({"error": "Forbidden"}), 403
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
-    scoped_query, tenant_err = _apply_alert_rule_tenant_filter(AlertRule.query, user, request.args.get("company_id"))
+    query_params, q_err = validate_query_model(AlertRulesQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
+    scoped_query, tenant_err = _apply_alert_rule_tenant_filter(AlertRule.query, user, query_params.company_id)
     if tenant_err:
         return tenant_err
     if scoped_query is None:
         return jsonify({"error": "Forbidden"}), 403
 
-    query, filter_err = _apply_alert_rule_query_filters(
-        scoped_query,
-        request.args.get("scope"),
-        request.args.get("equipment_id"),
-        request.args.get("rule_type"),
-        request.args.get("is_active"),
-    )
-    if filter_err:
-        return filter_err
-    if query is None:
-        return jsonify({"error": "Invalid filter"}), 400
+    query = _apply_alert_rule_query_filters(scoped_query, query_params)
 
     alert_rules = query.order_by(AlertRule.created_at.desc()).paginate(page=page, per_page=limit, error_out=False)
 
-    return jsonify(
+    return json_response(
+        AlertRulesListResponse,
         {
             "alert_rules": [ar.to_dict() for ar in alert_rules.items],
             "pagination": {
@@ -184,11 +166,17 @@ def get_alert_rules() -> tuple[Response, int]:
                 "total": alert_rules.total,
                 "total_pages": alert_rules.pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @alert_rules_bp.route("/<rule_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get alert rule details",
+    tags=["Alert Rules"],
+    responses={200: AlertRuleResponse},
+)
 @jwt_required()
 def get_alert_rule(rule_id: str) -> tuple[Response, int]:
     """Get a specific alert rule (Global Admin, or Company Admin if applicable to their company/equipment)."""
@@ -212,10 +200,16 @@ def get_alert_rule(rule_id: str) -> tuple[Response, int]:
             if not target_eq or target_eq.company_id != user.company_id:
                 return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(alert_rule.to_dict()), 200
+    return json_response(AlertRuleResponse, alert_rule.to_dict(), 200)
 
 
 @alert_rules_bp.route("", methods=["POST"])
+@openapi_meta(
+    summary="Create alert rule",
+    tags=["Alert Rules"],
+    request_body=AlertRuleCreateRequest,
+    responses={201: AlertRuleResponse},
+)
 @jwt_required()
 def create_alert_rule() -> tuple[Response, int]:
     """Create a new alert rule enforcing numeric vs non-numeric and scope invariants."""
@@ -228,35 +222,35 @@ def create_alert_rule() -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_alert_rule_create_schema, raw_data)
+    data, val_err = validate_request_model(AlertRuleCreateRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    rule_type = AlertRuleType(data["rule_type"])
-    severity = AlertSeverity(data["severity"])
-    scope = AlertRuleScope(data["scope"])
-    comp_op = _parse_comparison_operator(data.get("comparison_operator"))
+    rule_type = AlertRuleType(data.rule_type)
+    severity = AlertSeverity(data.severity)
+    scope = AlertRuleScope(data.scope)
+    comp_op = _parse_comparison_operator(data.comparison_operator)
 
-    threshold_value = _parse_threshold(data.get("threshold_value"))
-    scope_id = data.get("scope_id") or None
-    duration_seconds = data["duration_seconds"]
+    threshold_value = data.threshold_value
+    scope_id = data.scope_id or None
+    duration_seconds = data.duration_seconds
 
     domain_error = _validate_rule_domain(rule_type, threshold_value, comp_op, scope, scope_id)
     if domain_error:
         return jsonify({"error": domain_error}), 400
 
     alert_rule = AlertRule(
-        name=data["name"],
-        description=data.get("description"),
+        name=data.name,
+        description=data.description,
         rule_type=rule_type,
         threshold_value=threshold_value,
         comparison_operator=comp_op,
         duration_seconds=duration_seconds,
         severity=severity,
-        message_template=data.get("message_template") or "{serial} triggered {rule_type}",
+        message_template=data.message_template or "{serial} triggered {rule_type}",
         scope=scope,
         scope_id=scope_id,
-        is_active=data["is_active"],
+        is_active=data.is_active,
         created_by=user.id,
     )
 
@@ -266,7 +260,7 @@ def create_alert_rule() -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="create_alert_rule",
-            entity_type="alert_rule",
+            entity_type=AuditEntityType.ALERT_RULE,
             entity_id=alert_rule.id,
             changes={
                 "name": alert_rule.name,
@@ -279,12 +273,7 @@ def create_alert_rule() -> tuple[Response, int]:
         db.session.rollback()
         return jsonify({"error": "Alert rule violates uniqueness or domain constraints"}), 400
 
-    return jsonify(alert_rule.to_dict()), 201
-
-
-def _parse_threshold(value: float | None) -> Decimal | None:
-    """Convert an optional float threshold to Decimal for AlertRule.threshold_value."""
-    return Decimal(str(value)) if value is not None else None
+    return json_response(AlertRuleResponse, alert_rule.to_dict(), 201)
 
 
 def _parse_comparison_operator(value: str | None) -> ComparisonOperator | None:
@@ -292,29 +281,34 @@ def _parse_comparison_operator(value: str | None) -> ComparisonOperator | None:
     return ComparisonOperator(value) if value is not None else None
 
 
-def _apply_alert_rule_updates(alert_rule: AlertRule, data: AlertRuleUpdatePayload) -> None:
+def _apply_alert_rule_updates(alert_rule: AlertRule, data: AlertRuleUpdateRequest) -> None:
     """Apply validated partial update fields to an AlertRule instance."""
-    if "name" in data:
-        alert_rule.name = data["name"]
-    if "description" in data:
-        alert_rule.description = data["description"]
-    if "threshold_value" in data:
-        alert_rule.threshold_value = _parse_threshold(data["threshold_value"])
-    if "duration_seconds" in data:
-        alert_rule.duration_seconds = data["duration_seconds"]
-    if "message_template" in data:
-        message_template = data["message_template"]
-        if message_template is not None:
-            alert_rule.message_template = message_template
-    if "comparison_operator" in data:
-        alert_rule.comparison_operator = _parse_comparison_operator(data["comparison_operator"])
-    if "severity" in data:
-        alert_rule.severity = AlertSeverity(data["severity"])
-    if "is_active" in data:
-        alert_rule.is_active = data["is_active"]
+    fields = data.model_fields_set
+    if "name" in fields and data.name is not None:
+        alert_rule.name = data.name
+    if "description" in fields:
+        alert_rule.description = data.description
+    if "threshold_value" in fields:
+        alert_rule.threshold_value = data.threshold_value
+    if "duration_seconds" in fields and data.duration_seconds is not None:
+        alert_rule.duration_seconds = data.duration_seconds
+    if "message_template" in fields and data.message_template is not None:
+        alert_rule.message_template = data.message_template
+    if "comparison_operator" in fields:
+        alert_rule.comparison_operator = _parse_comparison_operator(data.comparison_operator)
+    if "severity" in fields and data.severity is not None:
+        alert_rule.severity = AlertSeverity(data.severity)
+    if "is_active" in fields and data.is_active is not None:
+        alert_rule.is_active = data.is_active
 
 
 @alert_rules_bp.route("/<rule_id>", methods=["PATCH"])
+@openapi_meta(
+    summary="Update alert rule",
+    tags=["Alert Rules"],
+    request_body=AlertRuleUpdateRequest,
+    responses={200: AlertRuleResponse},
+)
 @jwt_required()
 def update_alert_rule(rule_id: str) -> tuple[Response, int]:
     """Update an alert rule while preserving domain constraints."""
@@ -331,7 +325,7 @@ def update_alert_rule(rule_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Alert rule not found"}), 404
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_alert_rule_update_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(AlertRuleUpdateRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
@@ -352,7 +346,7 @@ def update_alert_rule(rule_id: str) -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="update_alert_rule",
-            entity_type="alert_rule",
+            entity_type=AuditEntityType.ALERT_RULE,
             entity_id=alert_rule.id,
             changes={"is_active": alert_rule.is_active},
         )
@@ -361,10 +355,15 @@ def update_alert_rule(rule_id: str) -> tuple[Response, int]:
         db.session.rollback()
         return jsonify({"error": "Alert rule update violates uniqueness or domain constraints"}), 400
 
-    return jsonify(alert_rule.to_dict()), 200
+    return json_response(AlertRuleResponse, alert_rule.to_dict(), 200)
 
 
 @alert_rules_bp.route("/<rule_id>", methods=["DELETE"])
+@openapi_meta(
+    summary="Delete alert rule",
+    tags=["Alert Rules"],
+    responses={204: None},
+)
 @jwt_required()
 def delete_alert_rule(rule_id: str) -> tuple[Response | str, int]:
     """Delete an alert rule (alerts retain history via ON DELETE SET NULL)."""
@@ -386,7 +385,7 @@ def delete_alert_rule(rule_id: str) -> tuple[Response | str, int]:
     record_audit_log(
         user_id=user.id,
         action="delete_alert_rule",
-        entity_type="alert_rule",
+        entity_type=AuditEntityType.ALERT_RULE,
         entity_id=deleted_id,
         changes={"name": deleted_name},
     )
@@ -396,6 +395,11 @@ def delete_alert_rule(rule_id: str) -> tuple[Response | str, int]:
 
 
 @alert_rules_bp.route("/<rule_id>/statistics", methods=["GET"])
+@openapi_meta(
+    summary="Get alert rule trigger statistics",
+    tags=["Alert Rules"],
+    responses={200: AlertRuleStatisticsResponse},
+)
 @jwt_required()
 def get_alert_rule_statistics(rule_id: str) -> tuple[Response, int]:
     """Get trigger statistics for a specific alert rule (Global Admin only)."""
@@ -427,12 +431,14 @@ def get_alert_rule_statistics(rule_id: str) -> tuple[Response, int]:
     affected_equipments = int(stats_row.affected_equipments or 0)
     avg_triggers = round(total_triggers / affected_equipments, 2) if affected_equipments > 0 else 0.0
 
-    return jsonify(
+    return json_response(
+        AlertRuleStatisticsResponse,
         {
             "rule_id": str(alert_rule.id),
             "total_triggers": total_triggers,
             "triggers_last_30_days": triggers_last_30_days,
             "affected_equipments": affected_equipments,
             "avg_triggers_per_equipment": avg_triggers,
-        }
-    ), 200
+        },
+        200,
+    )

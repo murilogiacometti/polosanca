@@ -46,13 +46,9 @@ const { Text } = Typography;
 
 type JumpItemKind = 'company' | 'branch' | 'equipment' | 'page';
 
-interface JumpCompany extends Company {
-  equipment_count?: number;
-}
+type JumpCompany = Company;
 
-interface JumpEquipment extends Equipment {
-  manufacturer?: string | null;
-}
+type JumpEquipment = Equipment;
 
 interface JumpResultItem {
   id: string;
@@ -243,7 +239,7 @@ export default function QuickJumpModal({
             title: c.name,
             subtitle: `${
               c.branches_count === 1 ? 'Unidade única' : `${c.branches_count ?? 0} filiais`
-            } • ${c.equipment_count ?? c.equipments_count ?? 0} equipamentos`,
+            } • ${c.equipment_count ?? 0} equipamentos`,
             path: `/operacao/empresas/${c.id}`,
             icon: <BankOutlined />,
           }))

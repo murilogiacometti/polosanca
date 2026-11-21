@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum as PyEnum
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from sqlalchemy import (
     DDL,
@@ -36,90 +36,56 @@ from sqlalchemy.orm.base import NO_VALUE
 from sqlalchemy.sql import func
 
 from app import Base
+from app.enums import (
+    AlertRuleScope,
+    AlertRuleType,
+    AlertSeverity,
+    AlertStatus,
+    BinaryDeviceState,
+    BranchAccessType,
+    CompanyStatus,
+    ComparisonOperator,
+    DoorState,
+    EquipmentStatus,
+    EquipmentType,
+    UserRole,
+    UserStatus,
+)
+
+__all__ = [
+    "Alert",
+    "AlertRule",
+    "AlertRuleScope",
+    "AlertRuleType",
+    "AlertSeverity",
+    "AlertStatus",
+    "AuditLog",
+    "Branch",
+    "BranchAccessType",
+    "Company",
+    "CompanyStatus",
+    "ComparisonOperator",
+    "CurrentDataSnapshot",
+    "Equipment",
+    "EquipmentStatus",
+    "EquipmentType",
+    "MaintenanceRecord",
+    "Telemetry",
+    "User",
+    "UserBranchAccess",
+    "UserRole",
+    "UserStatus",
+]
 
 
 class CurrentDataSnapshot(TypedDict):
     temperature: float
     pressure: float
-    door: Literal["open", "closed"]
-    heater: Literal["on", "off"]
-    compressor: Literal["on", "off"]
-    fan: Literal["on", "off"]
+    door: DoorState
+    heater: BinaryDeviceState
+    compressor: BinaryDeviceState
+    fan: BinaryDeviceState
     last_update: str
-
-
-# ============================================================================
-# ENUMS
-# ============================================================================
-
-
-class UserRole(PyEnum):
-    GLOBAL_ADMIN = "global_admin"
-    COMPANY_ADMIN = "company_admin"
-    COMPANY_VIEWER = "company_viewer"
-
-
-class UserStatus(PyEnum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    PENDING = "pending"
-
-
-class CompanyStatus(PyEnum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-
-
-class EquipmentType(PyEnum):
-    FREEZER = "freezer"
-    REFRIGERATOR = "refrigerator"
-    COLD_ROOM = "cold_room"
-
-
-class EquipmentStatus(PyEnum):
-    OPERATIONAL = "operational"
-    WARNING = "warning"
-    CRITICAL = "critical"
-    OFFLINE = "offline"
-
-
-class AlertSeverity(PyEnum):
-    WARNING = "warning"
-    CRITICAL = "critical"
-
-
-class AlertStatus(PyEnum):
-    ACTIVE = "active"
-    ACKNOWLEDGED = "acknowledged"
-    RESOLVED = "resolved"
-
-
-class AlertRuleType(PyEnum):
-    TEMPERATURE_HIGH = "temperature_high"
-    TEMPERATURE_LOW = "temperature_low"
-    PRESSURE_HIGH = "pressure_high"
-    PRESSURE_LOW = "pressure_low"
-    DOOR_OPEN = "door_open"
-    EQUIPMENT_OFFLINE = "equipment_offline"
-
-
-class AlertRuleScope(PyEnum):
-    GLOBAL = "global"
-    COMPANY = "company"
-    EQUIPMENT = "equipment"
-
-
-class ComparisonOperator(PyEnum):
-    GT = ">"
-    LT = "<"
-    EQ = "="
-    GTE = ">="
-    LTE = "<="
-
-
-class BranchAccessType(PyEnum):
-    FULL = "full"
-    RESTRICTED = "restricted"
 
 
 def _enum_values(cls: type[PyEnum]) -> list[str]:
@@ -576,10 +542,10 @@ class Telemetry(Base):
             "equipment_id": str(self.equipment_id),
             "temperature": float(self.temperature) if self.temperature is not None else None,
             "pressure": float(self.pressure) if self.pressure is not None else None,
-            "door": self.door,
-            "heater": self.heater,
-            "compressor": self.compressor,
-            "fan": self.fan,
+            "door": ("open" if self.door == 1 else "closed") if self.door is not None else None,
+            "heater": ("on" if self.heater == 1 else "off") if self.heater is not None else None,
+            "compressor": ("on" if self.compressor == 1 else "off") if self.compressor is not None else None,
+            "fan": ("on" if self.fan == 1 else "off") if self.fan is not None else None,
             "source": self.source,
             "recorded_by": str(self.recorded_by) if self.recorded_by else None,
             "notes": self.notes,

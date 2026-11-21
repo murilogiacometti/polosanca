@@ -39,9 +39,7 @@ import AlertTriageActions from '../../components/Common/AlertTriageActions';
 import WorkspaceSkeleton from '../../components/Common/WorkspaceSkeleton';
 import AcknowledgeAlertModal from '../../components/Modals/AcknowledgeAlertModal';
 import ApiKeyModal, { type ApiKeyModalData } from '../../components/Modals/ApiKeyModal';
-import EquipmentFormModal, {
-  type EquipmentRecord,
-} from '../../components/Modals/EquipmentFormModal';
+import EquipmentFormModal from '../../components/Modals/EquipmentFormModal';
 import MaintenanceFormModal from '../../components/Modals/MaintenanceFormModal';
 import ManualTelemetryModal from '../../components/Modals/ManualTelemetryModal';
 import { RowActionMenu, StatusPill, SubsystemStack } from '../../components/ui';
@@ -56,6 +54,7 @@ import type {
   AlertType,
   Branch,
   ChartTelemetryPoint,
+  Equipment,
   EquipmentStatus,
   MaintenanceRecord,
   MaintenanceType,
@@ -100,7 +99,7 @@ interface LockedFocusState {
 }
 
 interface UnitDetailsData {
-  equipment: EquipmentRecord;
+  equipment: Equipment;
   applicableRules: AlertRule[];
   equipmentAlerts: AlertItem[];
   maintenanceRecords: MaintenanceRecord[];
@@ -138,7 +137,7 @@ interface LiveTelemetryValues {
 }
 
 function resolveLiveTelemetry(
-  equipment: EquipmentRecord,
+  equipment: Equipment,
   liveSnapshot: RealtimeSnapshot | null | undefined
 ): LiveTelemetryValues {
   const currentData = equipment.current_data || {};
@@ -1204,12 +1203,13 @@ export default function Level3EquipmentView({
           setManualModalOpen(false);
           if (created && telemetryQuery.data) {
             const optimisticRow: TelemetryRow = {
-              id: created.id || `manual-${Date.now()}`,
-              timestamp: created.recorded_at || created.timestamp || new Date().toISOString(),
+              id: `manual-${Date.now()}`,
+              timestamp: created.timestamp || new Date().toISOString(),
               temperature: created.temperature,
               pressure: null,
-              source: 'manual',
-              notes: created.notes || null,
+              source: created.source,
+              recorded_by: created.recorded_by,
+              notes: created.notes ?? null,
             };
             qc.setQueryData<TelemetryBundleData>(telemetryKey, {
               ...telemetryQuery.data,

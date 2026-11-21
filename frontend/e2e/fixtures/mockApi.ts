@@ -1,9 +1,23 @@
 import type { Page, Route } from '@playwright/test';
+import type {
+  AlertItem,
+  AlertRule,
+  AuditLogItem,
+  Branch,
+  Company,
+  Equipment,
+  MaintenanceRecord,
+  PaginationMeta,
+  User,
+  UserRole,
+} from '../../src/types/models';
+import type { components } from '../../src/types/openapi';
 
-type MockRole = 'global_admin' | 'company_admin' | 'company_viewer';
+type OpenApiSchemas = components['schemas'];
+type TelemetryDataPoint = OpenApiSchemas['TelemetryDataPoint'];
 
 export interface MockSessionOptions {
-  role?: MockRole;
+  role?: UserRole;
   restrictedBranchId?: string;
 }
 
@@ -31,6 +45,15 @@ function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
+function makePagination(total: number, limit = 100, page = 1): PaginationMeta {
+  return {
+    page,
+    limit,
+    total,
+    total_pages: total === 0 ? 0 : Math.ceil(total / limit),
+  };
+}
+
 export interface MockBackendController {
   setForceSessionExpired: (expired: boolean) => void;
   getManualSubmissionsCount: () => number;
@@ -40,13 +63,13 @@ export async function installMockApi(
   page: Page,
   options: MockSessionOptions = {}
 ): Promise<MockBackendController> {
-  const role: MockRole = options.role ?? 'global_admin';
+  const role: UserRole = options.role ?? 'global_admin';
   const restrictedBranchId = options.restrictedBranchId ?? IDS.branchCentro;
 
   let forceSessionExpired = false;
   let manualSubmissionsCount = 0;
 
-  const currentUser =
+  const currentUser: User =
     role === 'global_admin'
       ? {
           id: IDS.userAdmin,
@@ -56,6 +79,7 @@ export async function installMockApi(
           status: 'active',
           company_id: null,
           branch_access_type: 'full',
+          branch_access: { type: 'full', branches: null },
         }
       : role === 'company_admin'
         ? {
@@ -65,8 +89,8 @@ export async function installMockApi(
             role: 'company_admin',
             status: 'active',
             company_id: IDS.companyA,
-            company_name: 'Supermercados São Carlos',
             branch_access_type: 'full',
+            branch_access: { type: 'full', branches: null },
           }
         : {
             id: IDS.userViewer,
@@ -75,12 +99,11 @@ export async function installMockApi(
             role: 'company_viewer',
             status: 'active',
             company_id: IDS.companyA,
-            company_name: 'Supermercados São Carlos',
             branch_access_type: 'restricted',
-            permitted_branch_ids: [restrictedBranchId],
+            branch_access: { type: 'restricted', branches: [restrictedBranchId] },
           };
 
-  const companies = [
+  const companies: Company[] = [
     {
       id: IDS.companyA,
       name: 'Supermercados São Carlos',
@@ -89,7 +112,6 @@ export async function installMockApi(
       contact_phone: '(16) 3333-1000',
       branches_count: 2,
       equipment_count: 5,
-      equipments_count: 5,
     },
     {
       id: IDS.companyB,
@@ -99,30 +121,25 @@ export async function installMockApi(
       contact_phone: '(16) 3333-2000',
       branches_count: 1,
       equipment_count: 0,
-      equipments_count: 0,
     },
   ];
 
-  const allBranches = [
+  const allBranches: Branch[] = [
     {
       id: IDS.branchCentro,
       company_id: IDS.companyA,
-      company_name: 'Supermercados São Carlos',
       name: 'Filial Centro',
       address: 'Av. São Carlos, 1200',
-      manager_name: 'Carlos Mendes',
       manager_contact: '(16) 99100-1111',
-      equipments_count: 4,
+      equipment_count: 4,
     },
     {
       id: IDS.branchIguatemi,
       company_id: IDS.companyA,
-      company_name: 'Supermercados São Carlos',
       name: 'Filial Iguatemi',
       address: 'Passeio dos Flamboyants, 200',
-      manager_name: 'Fernanda Lima',
       manager_contact: '(16) 99100-2222',
-      equipments_count: 1,
+      equipment_count: 1,
     },
   ];
 
@@ -134,7 +151,7 @@ export async function installMockApi(
   const recentTs = isoMinutesAgo(1);
   const offlineTs = isoMinutesAgo(17 * 60);
 
-  const equipments = [
+  const equipments: Equipment[] = [
     {
       id: IDS.eqCam002,
       serial: 'CAM-CENTRO-002',
@@ -258,17 +275,17 @@ export async function installMockApi(
   ];
 
   const alertTime = isoMinutesAgo(30);
-  const alerts = [
+  const alerts: AlertItem[] = [
     {
       id: IDS.alertCrit,
       type: 'temperature_high',
       severity: 'critical',
       status: 'active',
-      message: 'Temperatura crítica em CAM-CENTRO-002: leitura atual de 4,8 °C acima do limite de 2,0 °C.',
+      message:
+        'Temperatura crítica em CAM-CENTRO-002: leitura atual de 4,8 °C acima do limite de 2,0 °C.',
       equipment_id: IDS.eqCam002,
       serial: 'CAM-CENTRO-002',
       branch_id: IDS.branchCentro,
-      branch_name: 'Filial Centro',
       company_id: IDS.companyA,
       created_at: alertTime,
       acknowledged_at: null,
@@ -284,7 +301,6 @@ export async function installMockApi(
       equipment_id: IDS.eqCam002,
       serial: 'CAM-CENTRO-002',
       branch_id: IDS.branchCentro,
-      branch_name: 'Filial Centro',
       company_id: IDS.companyA,
       created_at: isoMinutesAgo(45),
       acknowledged_at: null,
@@ -293,104 +309,112 @@ export async function installMockApi(
     },
   ];
 
-  const telemetryByEquipment: Record<string, Array<Record<string, unknown>>> = {
+  const telemetryByEquipment: Record<string, TelemetryDataPoint[]> = {
     [IDS.eqCam002]: [
       {
         id: 't-4',
+        equipment_id: IDS.eqCam002,
         timestamp: isoMinutesAgo(10),
         temperature: 4.8,
         pressure: 118.2,
-        door: 1,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'open',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
       {
         id: 't-3',
+        equipment_id: IDS.eqCam002,
         timestamp: alertTime,
         temperature: 3.4,
         pressure: 112.0,
-        door: 1,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'open',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
       {
         id: 't-2',
+        equipment_id: IDS.eqCam002,
         timestamp: isoMinutesAgo(60),
         temperature: 0.4,
         pressure: 102.5,
-        door: 0,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'closed',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
       {
         id: 't-1',
+        equipment_id: IDS.eqCam002,
         timestamp: isoMinutesAgo(90),
         temperature: -0.2,
         pressure: 100.1,
-        door: 0,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'closed',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
     ],
     [IDS.eqFrz003]: [
       {
         id: 'tf-2',
+        equipment_id: IDS.eqFrz003,
         timestamp: isoMinutesAgo(10),
         temperature: -20.4,
         pressure: 78.2,
-        door: 0,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'closed',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
       {
         id: 'tf-1',
+        equipment_id: IDS.eqFrz003,
         timestamp: isoMinutesAgo(40),
         temperature: -20.1,
         pressure: 79.0,
-        door: 0,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'closed',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
     ],
     [IDS.eqRefOffline]: [
       {
         id: 'to-2',
+        equipment_id: IDS.eqRefOffline,
         timestamp: offlineTs,
         temperature: 2.6,
         pressure: 99.8,
-        door: 0,
-        compressor: 0,
-        fan: 0,
-        heater: 0,
+        door: 'closed',
+        compressor: 'off',
+        fan: 'off',
+        heater: 'off',
         source: 'device',
       },
       {
         id: 'to-1',
+        equipment_id: IDS.eqRefOffline,
         timestamp: isoMinutesAgo(18 * 60),
         temperature: 2.1,
         pressure: 100.2,
-        door: 0,
-        compressor: 1,
-        fan: 1,
-        heater: 0,
+        door: 'closed',
+        compressor: 'on',
+        fan: 'on',
+        heater: 'off',
         source: 'device',
       },
     ],
   };
 
-  const alertRules = [
+  const alertRules: AlertRule[] = [
     {
       id: IDS.ruleHighTemp,
       name: 'Temperatura Alta Câmara Fria',
@@ -399,7 +423,6 @@ export async function installMockApi(
       severity: 'critical',
       scope: 'equipment',
       scope_id: IDS.eqCam002,
-      equipment_id: IDS.eqCam002,
       comparison_operator: '>',
       threshold_value: 2.0,
       duration_seconds: 300,
@@ -409,7 +432,7 @@ export async function installMockApi(
     },
   ];
 
-  const maintenanceRecords: Array<Record<string, unknown>> = [
+  const maintenanceRecords: MaintenanceRecord[] = [
     {
       id: 'm-1',
       equipment_id: IDS.eqCam002,
@@ -422,7 +445,7 @@ export async function installMockApi(
     },
   ];
 
-  const users = [
+  const users: User[] = [
     currentUser,
     {
       id: IDS.userViewer,
@@ -431,13 +454,12 @@ export async function installMockApi(
       role: 'company_viewer',
       status: 'active',
       company_id: IDS.companyA,
-      company_name: 'Supermercados São Carlos',
       branch_access_type: 'restricted',
-      permitted_branch_ids: [IDS.branchCentro],
+      branch_access: { type: 'restricted', branches: [IDS.branchCentro] },
     },
   ];
 
-  const auditLogs = [
+  const auditLogs: AuditLogItem[] = [
     {
       id: IDS.audit1,
       action: 'update_equipment',
@@ -453,7 +475,7 @@ export async function installMockApi(
     },
   ];
 
-  const fulfillJson = (route: Route, body: unknown, status = 200) =>
+  const fulfillJson = <T>(route: Route, body: T, status = 200) =>
     route.fulfill({
       status,
       contentType: 'application/json',
@@ -483,15 +505,20 @@ export async function installMockApi(
     method: string
   ): Promise<boolean> => {
     if (path === '/auth/login' && method === 'POST') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['LoginResponse'] = {
         access_token: 'mock-access-token',
         refresh_token: 'mock-refresh-token',
         user: currentUser,
-      });
+      };
+      await fulfillJson(route, response);
       return true;
     }
     if (path === '/auth/logout' && method === 'POST') {
-      await fulfillJson(route, { success: true });
+      const response: OpenApiSchemas['MessageResponse'] = {
+        success: true,
+        message: 'Logout realizado com sucesso.',
+      };
+      await fulfillJson(route, response);
       return true;
     }
     return false;
@@ -500,27 +527,29 @@ export async function installMockApi(
   const handleOrgRoute = async (route: Route, path: string, method: string): Promise<boolean> => {
     if (method !== 'GET') return false;
     if (path === '/auth/me') {
-      await fulfillJson(route, currentUser);
+      await fulfillJson<User>(route, currentUser);
       return true;
     }
     if (path === '/companies') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['CompaniesListResponse'] = {
         companies,
-        pagination: { page: 1, limit: 100, total: companies.length },
-      });
+        pagination: makePagination(companies.length),
+      };
+      await fulfillJson(route, response);
       return true;
     }
     const companyMatch = path.match(/^\/companies\/([^/]+)$/);
     if (companyMatch) {
       const found = companies.find((c) => c.id === companyMatch[1]) || companies[0];
-      await fulfillJson(route, found);
+      await fulfillJson<Company>(route, found);
       return true;
     }
     if (path === '/branches') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['BranchesListResponse'] = {
         branches: visibleBranches,
-        pagination: { page: 1, limit: 100, total: visibleBranches.length },
-      });
+        pagination: makePagination(visibleBranches.length),
+      };
+      await fulfillJson(route, response);
       return true;
     }
     return false;
@@ -536,59 +565,95 @@ export async function installMockApi(
         role === 'company_viewer'
           ? equipments.filter((e) => e.branch_id === restrictedBranchId)
           : equipments;
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['EquipmentsListResponse'] = {
         equipment: filtered,
-        pagination: { page: 1, limit: 100, total: filtered.length },
-      });
+        pagination: makePagination(filtered.length),
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
     const eqDetailMatch = path.match(/^\/equipments\/([^/]+)$/);
     if (eqDetailMatch && method === 'GET') {
       const found = equipments.find((e) => e.id === eqDetailMatch[1]) || equipments[0];
-      await fulfillJson(route, found);
+      await fulfillJson<Equipment>(route, found);
       return true;
     }
 
     const eqRulesMatch = path.match(/^\/equipments\/([^/]+)\/alert-rules$/);
     if (eqRulesMatch && method === 'GET') {
-      await fulfillJson(route, { applicable_rules: alertRules });
+      const response: OpenApiSchemas['EquipmentAlertRulesResponse'] = {
+        equipment_id: eqRulesMatch[1] ?? '',
+        applicable_rules: alertRules,
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
     const eqMaintMatch = path.match(/^\/equipments\/([^/]+)\/maintenance-records$/);
     if (eqMaintMatch && method === 'GET') {
-      await fulfillJson(route, {
-        maintenance_records: maintenanceRecords.filter((m) => m.equipment_id === eqMaintMatch[1]),
-      });
+      const eqId = eqMaintMatch[1] ?? '';
+      const filtered = maintenanceRecords.filter((m) => m.equipment_id === eqId);
+      const response: OpenApiSchemas['MaintenanceRecordsListResponse'] = {
+        equipment_id: eqId,
+        maintenance_records: filtered,
+        pagination: makePagination(filtered.length),
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
+    return false;
+  };
+
+  const handleEquipmentTelemetryRoute = async (
+    route: Route,
+    path: string,
+    method: string
+  ): Promise<boolean> => {
     const eqManualMatch = path.match(/^\/equipments\/([^/]+)\/telemetry\/manual$/);
     if (eqManualMatch && method === 'POST') {
       const eqId = eqManualMatch[1] ?? '';
       const { temperature, notes } = parseManualTelemetryBody(route.request().postDataJSON());
       manualSubmissionsCount += 1;
-      const created = {
+      const nowIso = new Date().toISOString();
+      const storedPoint: TelemetryDataPoint = {
         id: `manual-${manualSubmissionsCount}`,
-        timestamp: new Date().toISOString(),
-        recorded_at: new Date().toISOString(),
+        equipment_id: eqId,
+        timestamp: nowIso,
         temperature,
         pressure: null,
         source: 'manual',
+        recorded_by: currentUser.id,
         notes,
       };
-      telemetryByEquipment[eqId] = [created, ...(telemetryByEquipment[eqId] || [])];
-      await fulfillJson(route, created, 201);
+      telemetryByEquipment[eqId] = [storedPoint, ...(telemetryByEquipment[eqId] || [])];
+      const response: OpenApiSchemas['ManualTelemetryResponse'] = {
+        success: true,
+        equipment_id: eqId,
+        timestamp: nowIso,
+        temperature,
+        source: 'manual',
+        recorded_by: currentUser.id,
+        notes,
+      };
+      await fulfillJson(route, response, 201);
       return true;
     }
 
     const eqTelemetryMatch = path.match(/^\/equipments\/([^/]+)\/telemetry$/);
     if (eqTelemetryMatch && method === 'GET') {
       const eqId = eqTelemetryMatch[1] ?? '';
-      await fulfillJson(route, {
-        data: telemetryByEquipment[eqId] || [],
-      });
+      const rows = telemetryByEquipment[eqId] || [];
+      const foundEq = equipments.find((e) => e.id === eqId);
+      const response: OpenApiSchemas['TelemetryHistoryResponse'] = {
+        equipment_id: eqId,
+        serial: foundEq?.serial ?? null,
+        interval: 'raw',
+        count: rows.length,
+        data: rows,
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
@@ -602,24 +667,27 @@ export async function installMockApi(
   ): Promise<boolean> => {
     if (method !== 'GET') return false;
     if (path === '/telemetry/realtime') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['RealtimeTelemetryListResponse'] = {
         equipment: equipments.map((e) => ({
           equipment_id: e.id,
           serial: e.serial,
+          branch_id: e.branch_id,
+          company_id: e.company_id,
           status: e.status,
-          temperature: e.current_data.temperature,
-          pressure: e.current_data.pressure,
-          door: e.current_data.door,
-          compressor: e.current_data.compressor,
-          fan: e.current_data.fan,
-          heater: e.current_data.heater,
-          last_update: e.current_data.last_update,
+          temperature: e.current_data?.temperature ?? null,
+          pressure: e.current_data?.pressure ?? null,
+          door: e.current_data?.door ?? null,
+          compressor: e.current_data?.compressor ?? null,
+          fan: e.current_data?.fan ?? null,
+          heater: e.current_data?.heater ?? null,
+          last_update: e.current_data?.last_update ?? null,
         })),
-      });
+      };
+      await fulfillJson(route, response);
       return true;
     }
     if (path === '/telemetry/overview') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['TelemetryOverviewResponse'] = {
         overview: {
           [IDS.eqCam002]: {
             sparkline_24h: [
@@ -644,7 +712,8 @@ export async function installMockApi(
             threshold: { low: 0.0, high: 2.0, label: 'Meta: 0,0 a 2,0 °C' },
           },
         },
-      });
+      };
+      await fulfillJson(route, response);
       return true;
     }
     return false;
@@ -658,13 +727,19 @@ export async function installMockApi(
   ): Promise<boolean> => {
     if (path === '/alerts/statistics' && method === 'GET') {
       const active = alerts.filter((a) => a.status === 'active');
-      await fulfillJson(route, {
+      const byType: Record<string, number> = {};
+      for (const item of active) {
+        byType[item.type] = (byType[item.type] ?? 0) + 1;
+      }
+      const response: OpenApiSchemas['AlertStatisticsResponse'] = {
         total_active: active.length,
         by_severity: {
           critical: active.filter((a) => a.severity === 'critical').length,
           warning: active.filter((a) => a.severity === 'warning').length,
         },
-      });
+        by_type: byType,
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
@@ -679,10 +754,11 @@ export async function installMockApi(
       if (eqIdParam) {
         list = list.filter((a) => a.equipment_id === eqIdParam);
       }
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['AlertsListResponse'] = {
         alerts: list,
-        pagination: { page: 1, limit: 20, total: list.length },
-      });
+        pagination: makePagination(list.length, 20),
+      };
+      await fulfillJson(route, response);
       return true;
     }
 
@@ -714,24 +790,28 @@ export async function installMockApi(
   const handleAdminRoute = async (route: Route, path: string, method: string): Promise<boolean> => {
     if (method !== 'GET') return false;
     if (path === '/alert-rules') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['AlertRulesListResponse'] = {
         alert_rules: alertRules,
-        pagination: { page: 1, limit: 20, total: alertRules.length },
-      });
+        pagination: makePagination(alertRules.length, 20),
+      };
+      await fulfillJson(route, response);
       return true;
     }
     if (path === '/users') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['UsersListResponse'] = {
         users,
-        pagination: { page: 1, limit: 20, total: users.length },
-      });
+        pagination: makePagination(users.length, 20),
+      };
+      await fulfillJson(route, response);
       return true;
     }
     if (path === '/audit-logs') {
-      await fulfillJson(route, {
+      const response: OpenApiSchemas['AuditLogsListResponse'] = {
         audit_logs: auditLogs,
         next_page_token: null,
-      });
+        pagination: makePagination(auditLogs.length, 20),
+      };
+      await fulfillJson(route, response);
       return true;
     }
     return false;
@@ -746,12 +826,14 @@ export async function installMockApi(
     if (await handleAuthPreSessionRoute(route, path, method)) return;
 
     if (forceSessionExpired) {
-      await fulfillJson(route, { error: 'Token Expired' }, 401);
+      const err: OpenApiSchemas['Error'] = { error: 'Token Expired' };
+      await fulfillJson(route, err, 401);
       return;
     }
 
     if (await handleOrgRoute(route, path, method)) return;
     if (await handleEquipmentRoute(route, path, method)) return;
+    if (await handleEquipmentTelemetryRoute(route, path, method)) return;
     if (await handleTelemetryRoute(route, path, method)) return;
     if (await handleAlertRoute(route, url, path, method)) return;
     if (await handleAdminRoute(route, path, method)) return;

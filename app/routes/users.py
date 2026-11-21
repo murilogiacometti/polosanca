@@ -15,17 +15,26 @@ from flask_limiter.util import get_remote_address
 from sqlalchemy.orm import joinedload
 
 from app import db, limiter
+from app.enums import AuditEntityType
 from app.models import Branch, BranchAccessType, User, UserBranchAccess, UserRole, UserStatus
 from app.schemas import (
-    AcceptInvitationSchema,
-    BranchAccessInputPayload,
-    UserCreatePayload,
-    UserCreateSchema,
-    UserInviteSchema,
-    UserUpdatePayload,
-    UserUpdateSchema,
-    validate_request_schema,
+    AcceptInvitationRequest,
+    BranchAccessInput,
+    Error,
+    MessageResponse,
+    ResendInvitationResponse,
+    UserCreateRequest,
+    UserInviteRequest,
+    UserInviteResponse,
+    UsersListResponse,
+    UsersQuery,
+    UserUpdateRequest,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
 )
+from app.schemas import User as UserResponse
 from app.utils import (
     clamp_pagination,
     ensure_utc,
@@ -35,10 +44,6 @@ from app.utils import (
 )
 
 users_bp = Blueprint("users", __name__)
-_user_invite_schema = UserInviteSchema()
-_accept_invitation_schema = AcceptInvitationSchema()
-_user_create_schema = UserCreateSchema()
-_user_update_schema = UserUpdateSchema()
 
 
 def _validate_company_branches(company_id: uuid.UUID | str | None, branch_ids: Sequence[str]) -> str | None:
@@ -70,6 +75,12 @@ def _serialize_user_with_branch_access(user: User) -> dict[str, object]:
 
 
 @users_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List users",
+    tags=["Users"],
+    query_params=UsersQuery,
+    responses={200: UsersListResponse},
+)
 @jwt_required()
 def get_users() -> tuple[Response, int]:
     """List users scoped to caller permissions (Global Admin or owning Company Admin)."""
@@ -81,13 +92,14 @@ def get_users() -> tuple[Response, int]:
     if requesting_user.role == UserRole.COMPANY_VIEWER:
         return jsonify({"error": "Forbidden"}), 403
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
-    company_id_filter = request.args.get("company_id")
-    role_filter = request.args.get("role")
-    status_filter = request.args.get("status")
+    query_params, q_err = validate_query_model(UsersQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
+    company_id_filter = query_params.company_id
+    role_filter = query_params.role
+    status_filter = query_params.status
 
     query = User.query.options(joinedload(User.branch_accesses))
 
@@ -100,20 +112,15 @@ def get_users() -> tuple[Response, int]:
         query = query.filter(User.company_id == requesting_user.company_id)
 
     if role_filter:
-        try:
-            query = query.filter(User.role == UserRole(role_filter))
-        except ValueError:
-            return jsonify({"error": "Invalid role filter"}), 400
+        query = query.filter(User.role == role_filter)
 
     if status_filter:
-        try:
-            query = query.filter(User.status == UserStatus(status_filter))
-        except ValueError:
-            return jsonify({"error": "Invalid status filter"}), 400
+        query = query.filter(User.status == status_filter)
 
     users = query.order_by(User.created_at.desc()).paginate(page=page, per_page=limit, error_out=False)
 
-    return jsonify(
+    return json_response(
+        UsersListResponse,
         {
             "users": [_serialize_user_with_branch_access(u) for u in users.items],
             "pagination": {
@@ -122,11 +129,17 @@ def get_users() -> tuple[Response, int]:
                 "total": users.total,
                 "total_pages": users.pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @users_bp.route("/<user_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get user details",
+    tags=["Users"],
+    responses={200: UserResponse},
+)
 @jwt_required()
 def get_user(user_id: str) -> tuple[Response, int]:
     """Get a specific user (Global Admin or owning Company Admin)."""
@@ -146,7 +159,7 @@ def get_user(user_id: str) -> tuple[Response, int]:
     ):
         return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(_serialize_user_with_branch_access(user)), 200
+    return json_response(UserResponse, _serialize_user_with_branch_access(user), 200)
 
 
 def _resolve_invite_company_id(
@@ -172,14 +185,17 @@ def _resolve_invite_company_id(
 
 
 def _parse_invite_branch_access(
-    branch_access: BranchAccessInputPayload | None,
+    branch_access: BranchAccessInput | None,
     company_id: uuid.UUID | str | None,
 ) -> tuple[BranchAccessType | None, list[str], tuple[Response, int] | None]:
     """Validate optional branch_access payload for an invited user."""
-    if not branch_access:
+    if branch_access is None or not branch_access.model_fields_set:
         return None, [], None
 
-    access_type = branch_access.get("type", "full")
+    access_type = branch_access.type if "type" in branch_access.model_fields_set else "full"
+    if not access_type:
+        return None, [], (jsonify({"error": "Invalid branch access type"}), 400)
+
     try:
         parsed_type = BranchAccessType(access_type)
     except ValueError:
@@ -188,7 +204,7 @@ def _parse_invite_branch_access(
     if access_type != "restricted":
         return parsed_type, [], None
 
-    branch_ids = branch_access.get("branches", [])
+    branch_ids = branch_access.branches
     if not branch_ids:
         return None, [], (jsonify({"error": "At least one branch must be assigned for restricted access"}), 400)
 
@@ -222,18 +238,18 @@ def _authorize_user_management(user_id: str) -> tuple[User | None, User | None, 
 
 def _apply_user_identity_updates(
     user: User,
-    data: UserUpdatePayload,
+    data: UserUpdateRequest,
     changes: dict[str, object],
 ) -> tuple[Response, int] | None:
     """Apply name and unique email updates to a user and record audit diffs."""
-    if "name" in data:
-        new_name = data["name"]
+    if "name" in data.model_fields_set and data.name is not None:
+        new_name = data.name
         if new_name != user.name:
             changes["name"] = {"old": user.name, "new": new_name}
             user.name = new_name
 
-    if "email" in data:
-        new_email = data["email"].lower()
+    if "email" in data.model_fields_set and data.email is not None:
+        new_email = data.email.lower()
         if new_email != user.email:
             if User.query.filter_by(email=new_email).first():
                 return jsonify({"error": "A user with this email already exists"}), 400
@@ -246,13 +262,13 @@ def _apply_user_identity_updates(
 def _apply_user_role_update(
     requesting_user: User,
     user: User,
-    data: UserUpdatePayload,
+    data: UserUpdateRequest,
     changes: dict[str, object],
 ) -> tuple[Response, int] | None:
     """Apply role transition with privilege-escalation and company_id guards."""
-    if "role" not in data:
+    if "role" not in data.model_fields_set or data.role is None:
         return None
-    new_role = UserRole(data["role"])
+    new_role = UserRole(data.role)
 
     if requesting_user.role == UserRole.COMPANY_ADMIN and new_role == UserRole.GLOBAL_ADMIN:
         return jsonify({"error": "Company administrators cannot assign global_admin role"}), 403
@@ -263,7 +279,7 @@ def _apply_user_role_update(
             user.branch_access_type = BranchAccessType.FULL
             UserBranchAccess.query.filter_by(user_id=user.id).delete()
         elif user.role == UserRole.GLOBAL_ADMIN:
-            target_company_id = data.get("company_id")
+            target_company_id = data.company_id
             if not target_company_id:
                 return jsonify({"error": "company_id is required when changing global_admin to a company role"}), 400
             user.company_id = uuid.UUID(target_company_id)
@@ -275,13 +291,13 @@ def _apply_user_role_update(
 
 def _apply_user_branch_access_update(
     user: User,
-    branch_access: BranchAccessInputPayload | None,
+    branch_access: BranchAccessInput | None,
     changes: dict[str, object],
 ) -> tuple[Response, int] | None:
     """Validate and apply branch_access updates for a user."""
     if not branch_access:
         return None
-    access_type = branch_access.get("type")
+    access_type = branch_access.type
     if not access_type:
         return None
 
@@ -291,7 +307,7 @@ def _apply_user_branch_access_update(
         return jsonify({"error": "Invalid branch access type"}), 400
 
     if parsed_access_type == BranchAccessType.RESTRICTED:
-        branch_ids = branch_access.get("branches", [])
+        branch_ids = branch_access.branches
         if not branch_ids:
             return jsonify({"error": "At least one branch must be assigned for restricted access"}), 400
         branch_err = _validate_company_branches(user.company_id, branch_ids)
@@ -312,6 +328,12 @@ def _apply_user_branch_access_update(
 
 
 @users_bp.route("/invite", methods=["POST"])
+@openapi_meta(
+    summary="Invite a new user",
+    tags=["Users"],
+    request_body=UserInviteRequest,
+    responses={201: UserInviteResponse},
+)
 @jwt_required()
 def invite_user() -> tuple[Response, int]:
     """
@@ -331,21 +353,21 @@ def invite_user() -> tuple[Response, int]:
         return jsonify({"error": "You do not have permission to invite users"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_user_invite_schema, raw_data)
+    data, val_err = validate_request_model(UserInviteRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    email = data["email"].lower()
+    email = data.email.lower()
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "A user with this email already exists"}), 400
 
-    invited_role = UserRole(data["role"])
-    company_id, auth_err = _resolve_invite_company_id(requesting_user, invited_role, data.get("company_id"))
+    invited_role = UserRole(data.role)
+    company_id, auth_err = _resolve_invite_company_id(requesting_user, invited_role, data.company_id)
     if auth_err:
         return auth_err
 
     parsed_access_type, restricted_branch_ids, branch_err = _parse_invite_branch_access(
-        data.get("branch_access"),
+        data.branch_access,
         company_id,
     )
     if branch_err:
@@ -359,7 +381,7 @@ def invite_user() -> tuple[Response, int]:
     new_user = User(
         email=email,
         password_hash=password_hash,
-        name=data["name"],
+        name=data.name,
         role=invited_role,
         company_id=company_id,
         status=UserStatus.PENDING,
@@ -378,7 +400,7 @@ def invite_user() -> tuple[Response, int]:
     record_audit_log(
         user_id=requesting_user.id,
         action="invite_user",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=new_user.id,
         changes={
             "email": new_user.email,
@@ -390,28 +412,37 @@ def invite_user() -> tuple[Response, int]:
 
     send_invitation_email(new_user.email, new_user.name, invitation_token)
 
-    return jsonify(
+    return json_response(
+        UserInviteResponse,
         {
             "success": True,
             "user_id": str(new_user.id),
             "invitation_sent": True,
             "user": _serialize_user_with_branch_access(new_user),
             "message": "User invitation sent successfully",
-        }
-    ), 201
+        },
+        201,
+    )
 
 
 @users_bp.route("/accept-invitation", methods=["POST"])
+@openapi_meta(
+    summary="Accept user invitation",
+    tags=["Users"],
+    security=[],
+    request_body=AcceptInvitationRequest,
+    responses={200: MessageResponse, 429: Error},
+)
 @limiter.limit("10 per minute", key_func=get_remote_address)
 def accept_invitation() -> tuple[Response, int]:
     """Redeem a 7-day invitation token, set password, and transition pending -> active."""
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_accept_invitation_schema, raw_data)
+    data, val_err = validate_request_model(AcceptInvitationRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    token = data["token"]
-    password = data["password"]
+    token = data.token
+    password = data.password
 
     user = User.query.filter_by(invitation_token=token).first()
     if not user or user.status != UserStatus.PENDING:
@@ -429,21 +460,28 @@ def accept_invitation() -> tuple[Response, int]:
     record_audit_log(
         user_id=user.id,
         action="accept_invitation",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=user.id,
         changes={"status": {"old": "pending", "new": "active"}},
     )
     db.session.commit()
 
-    return jsonify(
+    return json_response(
+        MessageResponse,
         {
             "success": True,
             "message": "Invitation accepted successfully",
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @users_bp.route("/<user_id>/resend-invitation", methods=["POST"])
+@openapi_meta(
+    summary="Resend user invitation",
+    tags=["Users"],
+    responses={200: ResendInvitationResponse},
+)
 @jwt_required()
 def resend_invitation(user_id: str) -> tuple[Response, int]:
     """Resend invitation email to a pending user"""
@@ -482,7 +520,7 @@ def resend_invitation(user_id: str) -> tuple[Response, int]:
     record_audit_log(
         user_id=requesting_user.id,
         action="resend_invitation",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=user.id,
     )
     db.session.commit()
@@ -490,18 +528,25 @@ def resend_invitation(user_id: str) -> tuple[Response, int]:
     # Send invitation email
     send_invitation_email(user.email, user.name, invitation_token)
 
-    return jsonify(
-        {"success": True, "user_id": str(user.id), "invitation_sent": True, "message": "Invitation resent successfully"}
-    ), 200
+    return json_response(
+        ResendInvitationResponse,
+        {
+            "success": True,
+            "user_id": str(user.id),
+            "invitation_sent": True,
+            "message": "Invitation resent successfully",
+        },
+        200,
+    )
 
 
 def _validate_direct_user_branch_access(
-    data: UserCreatePayload,
+    data: UserCreateRequest,
     company_id: uuid.UUID | str | None,
 ) -> tuple[BranchAccessType | None, list[str], tuple[Response, int] | None]:
     """Parse and validate branch_access_type and branch_ids for direct user creation."""
-    access_type = BranchAccessType(data["branch_access_type"])
-    branch_ids = data["branch_ids"]
+    access_type = BranchAccessType(data.branch_access_type)
+    branch_ids = data.branch_ids
     if access_type != BranchAccessType.RESTRICTED:
         return access_type, [], None
     if not branch_ids:
@@ -513,6 +558,12 @@ def _validate_direct_user_branch_access(
 
 
 @users_bp.route("", methods=["POST"])
+@openapi_meta(
+    summary="Create a new user directly",
+    tags=["Users"],
+    request_body=UserCreateRequest,
+    responses={201: UserResponse},
+)
 @jwt_required()
 def create_user() -> tuple[Response, int]:
     """Direct user creation (restricted strictly to Global Admin; prefer /v1/users/invite)."""
@@ -524,17 +575,17 @@ def create_user() -> tuple[Response, int]:
         return jsonify({"error": "Forbidden: use /v1/users/invite to onboard users"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_user_create_schema, raw_data)
+    data, val_err = validate_request_model(UserCreateRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    email = data["email"].lower()
+    email = data.email.lower()
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "A user with this email already exists"}), 400
 
-    role = UserRole(data["role"])
+    role = UserRole(data.role)
 
-    company_id = None if role == UserRole.GLOBAL_ADMIN else data.get("company_id")
+    company_id = None if role == UserRole.GLOBAL_ADMIN else data.company_id
     if role != UserRole.GLOBAL_ADMIN and not company_id:
         return jsonify({"error": "company_id is required for non-global-admin roles"}), 400
 
@@ -542,13 +593,13 @@ def create_user() -> tuple[Response, int]:
     if branch_err:
         return branch_err
 
-    password = data["password"]
+    password = data.password
     password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     user = User(
         email=email,
         password_hash=password_hash,
-        name=data["name"].strip(),
+        name=data.name.strip(),
         role=role,
         company_id=company_id,
         status=UserStatus.ACTIVE,
@@ -564,16 +615,22 @@ def create_user() -> tuple[Response, int]:
     record_audit_log(
         user_id=requesting_user.id,
         action="create_user",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=user.id,
         changes={"email": user.email, "role": user.role.value},
     )
     db.session.commit()
 
-    return jsonify(_serialize_user_with_branch_access(user)), 201
+    return json_response(UserResponse, _serialize_user_with_branch_access(user), 201)
 
 
 @users_bp.route("/<user_id>", methods=["PATCH"])
+@openapi_meta(
+    summary="Update user",
+    tags=["Users"],
+    request_body=UserUpdateRequest,
+    responses={200: UserResponse},
+)
 @jwt_required()
 def update_user(user_id: str) -> tuple[Response, int]:
     """Update a user (Global Admin, or owning Company Admin without privilege escalation)."""
@@ -582,7 +639,7 @@ def update_user(user_id: str) -> tuple[Response, int]:
         return auth_err or (jsonify({"error": "User not found"}), 404)
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_user_update_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(UserUpdateRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
     changes: dict[str, object] = {}
@@ -591,35 +648,40 @@ def update_user(user_id: str) -> tuple[Response, int]:
     if identity_err:
         return identity_err
 
-    if "role" in data:
+    if "role" in data.model_fields_set:
         role_err = _apply_user_role_update(requesting_user, user, data, changes)
         if role_err:
             return role_err
 
-    if "status" in data:
-        new_status = UserStatus(data["status"])
+    if "status" in data.model_fields_set and data.status is not None:
+        new_status = UserStatus(data.status)
         if new_status != user.status:
             changes["status"] = {"old": user.status.value, "new": new_status.value}
             user.status = new_status
 
-    if "branch_access" in data:
-        branch_err = _apply_user_branch_access_update(user, data["branch_access"], changes)
+    if "branch_access" in data.model_fields_set:
+        branch_err = _apply_user_branch_access_update(user, data.branch_access, changes)
         if branch_err:
             return branch_err
 
     record_audit_log(
         user_id=requesting_user.id,
         action="update_user",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=user.id,
         changes=changes or None,
     )
     db.session.commit()
 
-    return jsonify(_serialize_user_with_branch_access(user)), 200
+    return json_response(UserResponse, _serialize_user_with_branch_access(user), 200)
 
 
 @users_bp.route("/<user_id>", methods=["DELETE"])
+@openapi_meta(
+    summary="Deactivate user",
+    tags=["Users"],
+    responses={204: None},
+)
 @jwt_required()
 def delete_user(user_id: str) -> tuple[Response | str, int]:
     """Soft-deactivate a user (Global Admin or owning Company Admin)."""
@@ -649,7 +711,7 @@ def delete_user(user_id: str) -> tuple[Response | str, int]:
     record_audit_log(
         user_id=requesting_user.id,
         action="deactivate_user",
-        entity_type="user",
+        entity_type=AuditEntityType.USER,
         entity_id=user.id,
         changes={"status": {"old": old_status, "new": UserStatus.INACTIVE.value}},
     )

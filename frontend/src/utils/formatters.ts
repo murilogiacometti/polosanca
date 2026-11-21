@@ -9,6 +9,7 @@ import type {
   AlertSeverity,
   AlertStatus,
   AlertType,
+  AuditEntityType,
   BinaryRawState,
   CompanyStatus,
   ComparisonOperator,
@@ -170,7 +171,11 @@ export const MAINTENANCE_TYPE_LABELS: Record<MaintenanceType, string> = {
   preventive: 'Manutenção Preventiva',
   repair: 'Reparo Corretivo',
   part_replacement: 'Substituição de Peça',
+  calibration: 'Calibração',
+  cleaning: 'Limpeza Técnica',
+  emergency: 'Emergência',
   emergency_fix: 'Reparo de Emergência',
+  other: 'Outro',
 };
 
 export const MAINTENANCE_TYPE_OPTIONS: Array<{ value: MaintenanceType; label: string }> = [
@@ -181,7 +186,7 @@ export const MAINTENANCE_TYPE_OPTIONS: Array<{ value: MaintenanceType; label: st
   { value: 'emergency_fix', label: 'Reparo de Emergência' },
 ];
 
-export const AUDIT_ENTITY_LABELS: Record<string, string> = {
+export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   company: 'Empresa',
   branch: 'Filial',
   user: 'Usuário',
@@ -190,6 +195,16 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   alert_rule: 'Regra de Alerta',
   maintenance_record: 'Manutenção',
 };
+
+export const AUDIT_ENTITY_OPTIONS: Array<{ value: AuditEntityType; label: string }> = [
+  { value: 'company', label: AUDIT_ENTITY_LABELS.company },
+  { value: 'branch', label: AUDIT_ENTITY_LABELS.branch },
+  { value: 'user', label: AUDIT_ENTITY_LABELS.user },
+  { value: 'equipment', label: AUDIT_ENTITY_LABELS.equipment },
+  { value: 'alert', label: AUDIT_ENTITY_LABELS.alert },
+  { value: 'alert_rule', label: AUDIT_ENTITY_LABELS.alert_rule },
+  { value: 'maintenance_record', label: AUDIT_ENTITY_LABELS.maintenance_record },
+];
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   create_company: 'Criação de empresa',
@@ -250,10 +265,10 @@ export interface FormattedDoorState {
 }
 
 export const formatDoorState = (door: DoorRawState): FormattedDoorState => {
-  if (door === 1 || door === 'open' || door === true) {
+  if (door === 'open') {
     return { label: 'Aberta', isOpen: true, color: 'warning' };
   }
-  if (door === 0 || door === 'closed' || door === false) {
+  if (door === 'closed') {
     return { label: 'Fechada', isOpen: false, color: 'success' };
   }
   return { label: 'Sem leitura', isOpen: null, color: 'default' };
@@ -269,14 +284,14 @@ export const formatComponentState = (
   state: BinaryRawState,
   feminine = false
 ): FormattedComponentState => {
-  if (state === 1 || state === 'on' || state === true) {
+  if (state === 'on') {
     return {
       label: feminine ? 'Ligada' : 'Ligado',
       isOn: true,
       color: 'processing',
     };
   }
-  if (state === 0 || state === 'off' || state === false) {
+  if (state === 'off') {
     return {
       label: feminine ? 'Desligada' : 'Desligado',
       isOn: false,

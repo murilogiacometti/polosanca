@@ -6,15 +6,13 @@ import {
   PlusOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Alert,
-  App as AntdApp,
   Button,
   Card,
   Col,
   Empty,
-  Modal,
   Row,
   Select,
   Space,
@@ -24,29 +22,21 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
-  deleteAlertRule,
   getAlertRules,
-  getAlertRuleStatistics,
   getCompanies,
-  getEquipmentAlertRules,
   getEquipments,
-  updateAlertRule,
   type GetAlertRulesParams,
 } from '../api';
 import WorkspaceSkeleton from '../components/Common/WorkspaceSkeleton';
-import AlertRuleModalForm, { type AlertRuleRecord } from '../components/Modals/AlertRuleModalForm';
+import AlertRuleFormModal from '../components/Modals/AlertRuleFormModal';
 import AlertRuleStatsModal from '../components/Modals/AlertRuleStatsModal';
 import AlertRulePrecedenceCard from '../components/Operations/AlertRulePrecedenceCard';
+import { useAlertRuleManagement } from '../components/Operations/useAlertRuleManagement';
 import { PageHeader, RowActionMenu, StatusPill } from '../components/ui';
 import { useAuth } from '../context/authContextObject';
-import {
-  confirmWithShortcutLock,
-  useSuspendShortcuts,
-  useUiShell,
-} from '../context/uiShellContextObject';
 import { resolveAlertSeverityTone } from '../theme/tokens';
 import type {
-  AlertRuleStatistics,
+  AlertRule,
   AlertScope,
   AlertSeverity,
   AlertType,
@@ -59,7 +49,6 @@ import {
   ALERT_SEVERITY_CONFIG,
   ALERT_TYPE_LABELS,
   ALERT_TYPE_OPTIONS,
-  extractApiError,
   formatAlertRuleCondition,
 } from '../utils/formatters';
 
@@ -134,8 +123,8 @@ function AlertRulesFilterBar({
 
 interface AlertRulesTableCardProps {
   loading: boolean;
-  rules: AlertRuleRecord[];
-  columns: ColumnsType<AlertRuleRecord>;
+  rules: AlertRule[];
+  columns: ColumnsType<AlertRule>;
   pagination: PaginationMeta;
   onPageChange: (nextPage: number) => void;
 }
@@ -155,7 +144,7 @@ function AlertRulesTableCard({
       {rules.length === 0 ? (
         <Empty description="Nenhuma regra de alerta encontrada." />
       ) : (
-        <Table<AlertRuleRecord>
+        <Table<AlertRule>
           rowKey="id"
           columns={columns}
           dataSource={rules}
@@ -174,53 +163,14 @@ function AlertRulesTableCard({
   );
 }
 
-interface AlertRuleFormModalProps {
-  open: boolean;
-  editingRule: AlertRuleRecord | null;
-  companies: Company[];
-  equipments: Equipment[];
-  onCancel: () => void;
-  onSaved: () => Promise<void>;
-}
-
-function AlertRuleFormModal({
-  open,
-  editingRule,
-  companies,
-  equipments,
-  onCancel,
-  onSaved,
-}: AlertRuleFormModalProps) {
-  return (
-    <Modal
-      open={open}
-      onCancel={onCancel}
-      footer={null}
-      destroyOnHidden
-      title={editingRule ? 'Editar Regra de Alerta' : 'Nova Regra de Alerta'}
-      width={620}
-    >
-      {open && (
-        <AlertRuleModalForm
-          rule={editingRule}
-          companies={companies}
-          equipments={equipments}
-          onCancel={onCancel}
-          onSaved={onSaved}
-        />
-      )}
-    </Modal>
-  );
-}
-
 interface BuildAlertRuleColumnsParams {
   isGlobalAdmin: boolean;
   companyMap: Record<string, string>;
   equipmentMap: Record<string, string>;
-  onToggleActive: (rule: AlertRuleRecord, checked: boolean) => void;
-  onOpenStats: (rule: AlertRuleRecord) => void;
-  onEdit: (rule: AlertRuleRecord) => void;
-  onRequestDelete: (rule: AlertRuleRecord) => void;
+  onToggleActive: (rule: AlertRule, checked: boolean) => void;
+  onOpenStats: (rule: AlertRule) => void;
+  onEdit: (rule: AlertRule) => void;
+  onRequestDelete: (rule: AlertRule) => void;
 }
 
 function buildAlertRuleColumns({
@@ -231,7 +181,7 @@ function buildAlertRuleColumns({
   onOpenStats,
   onEdit,
   onRequestDelete,
-}: BuildAlertRuleColumnsParams): ColumnsType<AlertRuleRecord> {
+}: BuildAlertRuleColumnsParams): ColumnsType<AlertRule> {
   return [
     {
       title: 'Nome da Regra',
@@ -355,7 +305,7 @@ function buildAlertRuleColumns({
               />
             ),
           },
-        ] satisfies ColumnsType<AlertRuleRecord>)
+        ] satisfies ColumnsType<AlertRule>)
       : []),
   ];
 }
@@ -364,28 +314,28 @@ export default function AlertRulesPage({
   headerNav = null,
   initialInspectEquipmentId = undefined,
 }: AlertRulesPageProps) {
-  const { message, modal } = AntdApp.useApp();
   const { isGlobalAdmin } = useAuth();
-  const { acquireShortcutLock } = useUiShell();
-  const qc = useQueryClient();
+  const {
+    ruleModalOpen,
+    editingRule,
+    openCreateModal,
+    openEditModal,
+    closeRuleModal,
+    statsRule,
+    ruleStats,
+    statsLoading,
+    handleOpenStats,
+    closeStatsModal,
+    refreshRules,
+    handleRuleSaved,
+    handleToggleActive,
+    handleRequestDelete,
+  } = useAlertRuleManagement();
 
   const [scopeFilter, setScopeFilter] = useState<AlertScope | undefined>(undefined);
   const [typeFilter, setTypeFilter] = useState<AlertType | undefined>(undefined);
   const [activeFilter, setActiveFilter] = useState<'true' | 'false' | undefined>(undefined);
   const [page, setPage] = useState(1);
-
-  const [selectedInspectEquipmentId, setSelectedInspectEquipmentId] = useState<
-    string | undefined
-  >(undefined);
-  const inspectedEquipmentId = selectedInspectEquipmentId ?? initialInspectEquipmentId;
-
-  const [ruleModalOpen, setRuleModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<AlertRuleRecord | null>(null);
-  const [statsModalRule, setStatsModalRule] = useState<AlertRuleRecord | null>(null);
-  const [ruleStats, setRuleStats] = useState<AlertRuleStatistics | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-
-  useSuspendShortcuts(ruleModalOpen || Boolean(statsModalRule));
 
   const auxiliaryQuery = useQuery<{ equipments: Equipment[]; companies: Company[] }>({
     queryKey: ['alert-rules', 'auxiliary', isGlobalAdmin],
@@ -409,79 +359,25 @@ export default function AlertRulesPage({
     const params: GetAlertRulesParams = { page, limit: 20 };
     if (scopeFilter) params.scope = scopeFilter;
     if (typeFilter) params.rule_type = typeFilter;
-    if (activeFilter !== undefined) params.is_active = activeFilter;
+    if (activeFilter !== undefined) params.is_active = activeFilter === 'true';
     return params;
   }, [page, scopeFilter, typeFilter, activeFilter]);
 
-  const rulesQuery = useQuery<{ alert_rules: AlertRuleRecord[]; pagination: PaginationMeta }>({
+  const rulesQuery = useQuery<{ alert_rules: AlertRule[]; pagination: PaginationMeta }>({
     queryKey: ['alert-rules', 'list', rulesParams],
     queryFn: async () => {
       const res = await getAlertRules(rulesParams);
       return {
         alert_rules: res?.alert_rules || [],
-        pagination: res?.pagination || { page: 1, limit: 20, total: 0 },
+        pagination: res?.pagination || { page: 1, limit: 20, total: 0, total_pages: 0 },
       };
     },
     placeholderData: keepPreviousData,
   });
 
-  const inspectedRulesQuery = useQuery<AlertRuleRecord[]>({
-    queryKey: ['alert-rules', 'inspect', inspectedEquipmentId ?? null],
-    enabled: Boolean(inspectedEquipmentId),
-    queryFn: async () => {
-      if (!inspectedEquipmentId) return [];
-      const res = await getEquipmentAlertRules(inspectedEquipmentId);
-      return res?.applicable_rules || [];
-    },
-  });
-
   const rules = rulesQuery.data?.alert_rules ?? [];
-  const pagination = rulesQuery.data?.pagination ?? { page: 1, limit: 20, total: 0 };
+  const pagination = rulesQuery.data?.pagination ?? { page: 1, limit: 20, total: 0, total_pages: 0 };
   const loading = rulesQuery.isFetching;
-  const inspectedRules = inspectedEquipmentId ? (inspectedRulesQuery.data ?? []) : [];
-  const inspectingLoading = inspectedRulesQuery.isFetching;
-
-  const fetchRules = async () => {
-    await qc.invalidateQueries({ queryKey: ['alert-rules'] });
-  };
-
-  const handleInspectEquipment = (eqId: string | undefined) => {
-    setSelectedInspectEquipmentId(eqId);
-  };
-
-  const handleToggleRuleActive = async (rule: AlertRuleRecord, checked: boolean) => {
-    try {
-      await updateAlertRule(rule.id, { is_active: checked });
-      message.success(checked ? 'Regra ativada.' : 'Regra desativada.');
-      await fetchRules();
-    } catch (err) {
-      message.error(extractApiError(err, 'Não foi possível alterar o estado da regra.'));
-    }
-  };
-
-  const handleDeleteRule = async (ruleId: string) => {
-    try {
-      await deleteAlertRule(ruleId);
-      message.success('Regra excluída. Alertas históricos foram preservados.');
-      await fetchRules();
-    } catch (err) {
-      message.error(extractApiError(err, 'Erro ao excluir regra de alerta.'));
-    }
-  };
-
-  const handleOpenStats = async (rule: AlertRuleRecord) => {
-    setStatsModalRule(rule);
-    setRuleStats(null);
-    setStatsLoading(true);
-    try {
-      const data = await getAlertRuleStatistics(rule.id);
-      setRuleStats(data);
-    } catch (err) {
-      message.error(extractApiError(err, 'Erro ao carregar estatísticas da regra.'));
-    } finally {
-      setStatsLoading(false);
-    }
-  };
 
   const companyMap: Record<string, string> = Object.fromEntries(
     companies.map((c) => [c.id, c.name])
@@ -490,36 +386,18 @@ export default function AlertRulesPage({
     equipments.map((e) => [e.id, e.serial])
   );
 
-  const handleRequestDeleteRule = (record: AlertRuleRecord) => {
-    confirmWithShortcutLock(
-      modal,
-      {
-        title: `Excluir "${record.name}"?`,
-        content: 'Alertas já gerados por esta regra continuarão preservados no histórico.',
-        okText: 'Excluir',
-        okButtonProps: { danger: true },
-        cancelText: 'Cancelar',
-        onOk: () => handleDeleteRule(record.id),
-      },
-      acquireShortcutLock
-    );
-  };
-
   const columns = buildAlertRuleColumns({
     isGlobalAdmin,
     companyMap,
     equipmentMap,
     onToggleActive: (record, checked) => {
-      void handleToggleRuleActive(record, checked);
+      void handleToggleActive(record, checked);
     },
     onOpenStats: (record) => {
       void handleOpenStats(record);
     },
-    onEdit: (record) => {
-      setEditingRule(record);
-      setRuleModalOpen(true);
-    },
-    onRequestDelete: handleRequestDeleteRule,
+    onEdit: openEditModal,
+    onRequestDelete: handleRequestDelete,
   });
 
   return (
@@ -533,20 +411,13 @@ export default function AlertRulesPage({
             <Button
               icon={<ReloadOutlined spin={loading} />}
               onClick={() => {
-                void fetchRules();
+                void refreshRules();
               }}
             >
               Atualizar
             </Button>
             {isGlobalAdmin && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setEditingRule(null);
-                  setRuleModalOpen(true);
-                }}
-              >
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
                 Nova Regra
               </Button>
             )}
@@ -593,32 +464,23 @@ export default function AlertRulesPage({
 
       <AlertRulePrecedenceCard
         equipments={equipments}
-        inspectedEquipmentId={inspectedEquipmentId}
-        inspectingLoading={inspectingLoading}
-        inspectedRules={inspectedRules}
-        onInspectEquipment={handleInspectEquipment}
+        initialEquipmentId={initialInspectEquipmentId}
       />
 
       <AlertRuleFormModal
         open={ruleModalOpen}
-        editingRule={editingRule}
+        rule={editingRule}
         companies={companies}
         equipments={equipments}
-        onCancel={() => setRuleModalOpen(false)}
-        onSaved={async () => {
-          setRuleModalOpen(false);
-          await fetchRules();
-          if (inspectedEquipmentId) {
-            handleInspectEquipment(inspectedEquipmentId);
-          }
-        }}
+        onCancel={closeRuleModal}
+        onSaved={handleRuleSaved}
       />
 
       <AlertRuleStatsModal
-        rule={statsModalRule}
+        rule={statsRule}
         loading={statsLoading}
         stats={ruleStats}
-        onClose={() => setStatsModalRule(null)}
+        onClose={closeStatsModal}
       />
     </Space>
   );

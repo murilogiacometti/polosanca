@@ -46,7 +46,7 @@ function CompanyFormBody({ company, onCancel, onSaved }: CompanyFormBodyProps) {
           await createBranch({
             company_id: result.id,
             name: 'Unidade Principal',
-            address: values.default_address?.trim() || null,
+            address: values.default_address?.trim() || '',
           });
         } catch {
           // Mantém empresa criada mesmo se houver falha transitória na filial padrão

@@ -23,9 +23,7 @@ import {
   formatDateTimePtBR,
 } from '../../utils/formatters';
 
-interface CompanyRecord extends Company {
-  equipment_count?: number;
-}
+type CompanyRecord = Company;
 
 interface CompanyProfileFormValues {
   name: string;
@@ -171,7 +169,7 @@ export default function CompanySettingsPanel({
               </Descriptions.Item>
               <Descriptions.Item label="Equipamentos Ativos">
                 <span className="ps-tabular">
-                  {companyRecord.equipment_count ?? company.equipments_count ?? '—'}
+                  {companyRecord.equipment_count ?? '—'}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="Cadastrada em">

@@ -18,7 +18,7 @@ import type {
   Equipment,
   EquipmentType,
   ManualTelemetryPayload,
-  TelemetryRow,
+  ManualTelemetryResponse,
 } from '../../types/models';
 import { extractApiError } from '../../utils/formatters';
 
@@ -52,7 +52,7 @@ interface ManualTelemetryFormValues {
 export interface ManualTelemetryModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (created: TelemetryRow) => void | Promise<void>;
+  onSuccess: (created: ManualTelemetryResponse) => void | Promise<void>;
   equipment?: ManualTelemetryEquipment | null;
 }
 

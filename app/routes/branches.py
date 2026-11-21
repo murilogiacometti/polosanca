@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.selectable import Subquery
 
 from app import db
+from app.enums import AuditEntityType
 from app.models import (
     Branch,
     BranchAccessType,
@@ -20,12 +21,22 @@ from app.models import (
     UserBranchAccess,
     UserRole,
 )
-from app.schemas import BranchCreateSchema, BranchUpdatePayload, BranchUpdateSchema, validate_request_schema
+from app.schemas import Branch as BranchResponse
+from app.schemas import (
+    BranchCreateRequest,
+    BranchesListResponse,
+    BranchesQuery,
+    BranchUpdateRequest,
+    Error,
+    MessageResponse,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
+)
 from app.utils import clamp_pagination, get_allowed_branch_ids, record_audit_log
 
 branches_bp = Blueprint("branches", __name__)
-_branch_create_schema = BranchCreateSchema()
-_branch_update_schema = BranchUpdateSchema()
 
 
 def _branch_equipment_count_subquery() -> Subquery:
@@ -42,6 +53,12 @@ def _branch_equipment_count_subquery() -> Subquery:
 
 
 @branches_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List branches",
+    tags=["Branches"],
+    query_params=BranchesQuery,
+    responses={200: BranchesListResponse},
+)
 @jwt_required()
 def get_branches() -> tuple[Response, int]:
     """Get branches with pagination, viewer branch scoping, and single-query equipment_count."""
@@ -50,11 +67,12 @@ def get_branches() -> tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
-    company_id = request.args.get("company_id")
+    query_params, q_err = validate_query_model(BranchesQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
+    company_id = query_params.company_id
 
     eq_sq = _branch_equipment_count_subquery()
     query = db.session.query(
@@ -76,7 +94,8 @@ def get_branches() -> tuple[Response, int]:
     items = query.offset((page - 1) * limit).limit(limit).all()
     total_pages = (total + limit - 1) // limit if total else 0
 
-    return jsonify(
+    return json_response(
+        BranchesListResponse,
         {
             "branches": [branch.to_dict(equipment_count=eq_count) for branch, eq_count in items],
             "pagination": {
@@ -85,11 +104,17 @@ def get_branches() -> tuple[Response, int]:
                 "total": total,
                 "total_pages": total_pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @branches_bp.route("/<branch_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get branch by ID",
+    tags=["Branches"],
+    responses={200: BranchResponse},
+)
 @jwt_required()
 def get_branch(branch_id: str) -> tuple[Response, int]:
     """Get a specific branch including equipment_count."""
@@ -120,10 +145,16 @@ def get_branch(branch_id: str) -> tuple[Response, int]:
         if allowed_branches is not None and branch.id not in allowed_branches:
             return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(branch.to_dict(equipment_count=eq_count)), 200
+    return json_response(BranchResponse, branch.to_dict(equipment_count=eq_count), 200)
 
 
 @branches_bp.route("", methods=["POST"])
+@openapi_meta(
+    summary="Create a new branch",
+    tags=["Branches"],
+    request_body=BranchCreateRequest,
+    responses={201: BranchResponse},
+)
 @jwt_required()
 def create_branch() -> tuple[Response, int]:
     """Create a new branch (Global Admin or owning Company Admin)."""
@@ -136,30 +167,30 @@ def create_branch() -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_branch_create_schema, raw_data)
+    data, val_err = validate_request_model(BranchCreateRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
     company_id: uuid.UUID | str | None
     if user.role == UserRole.GLOBAL_ADMIN:
-        company_id = data.get("company_id")
+        company_id = data.company_id
         if not company_id:
             return jsonify({"error": "company_id is required for Global Admin"}), 400
     else:
-        requested_company_id = data.get("company_id")
+        requested_company_id = data.company_id
         if requested_company_id and requested_company_id != str(user.company_id):
             return jsonify({"error": "Forbidden"}), 403
         company_id = user.company_id
 
-    name = data["name"]
+    name = data.name
     if Branch.query.filter_by(company_id=company_id, name=name).first():
         return jsonify({"error": "A branch with this name already exists in the company"}), 400
 
     branch = Branch(
         company_id=company_id,
         name=name,
-        address=data["address"],
-        manager_contact=data.get("manager_contact"),
+        address=data.address,
+        manager_contact=data.manager_contact,
     )
 
     try:
@@ -168,7 +199,7 @@ def create_branch() -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="create_branch",
-            entity_type="branch",
+            entity_type=AuditEntityType.BRANCH,
             entity_id=branch.id,
             changes={"name": branch.name, "company_id": str(branch.company_id)},
         )
@@ -177,27 +208,32 @@ def create_branch() -> tuple[Response, int]:
         db.session.rollback()
         return jsonify({"error": "A branch with this name already exists in the company"}), 400
 
-    return jsonify(branch.to_dict(equipment_count=0)), 201
+    return json_response(BranchResponse, branch.to_dict(equipment_count=0), 201)
 
 
-def _apply_branch_updates(branch: Branch, data: BranchUpdatePayload) -> dict[str, object]:
+def _apply_branch_updates(branch: Branch, data: BranchUpdateRequest) -> dict[str, object]:
     """Apply validated partial update fields to a Branch and return the audit diff."""
     changes: dict[str, object] = {}
-    if "name" in data and data["name"] != branch.name:
-        changes["name"] = {"old": branch.name, "new": data["name"]}
-        branch.name = data["name"]
-    if "address" in data:
-        new_address = data["address"]
-        if new_address is not None and new_address != branch.address:
-            changes["address"] = {"old": branch.address, "new": new_address}
-            branch.address = new_address
-    if "manager_contact" in data and data["manager_contact"] != branch.manager_contact:
-        changes["manager_contact"] = {"old": branch.manager_contact, "new": data["manager_contact"]}
-        branch.manager_contact = data["manager_contact"]
+    fields = data.model_fields_set
+    if "name" in fields and data.name is not None and data.name != branch.name:
+        changes["name"] = {"old": branch.name, "new": data.name}
+        branch.name = data.name
+    if "address" in fields and data.address is not None and data.address != branch.address:
+        changes["address"] = {"old": branch.address, "new": data.address}
+        branch.address = data.address
+    if "manager_contact" in fields and data.manager_contact != branch.manager_contact:
+        changes["manager_contact"] = {"old": branch.manager_contact, "new": data.manager_contact}
+        branch.manager_contact = data.manager_contact
     return changes
 
 
 @branches_bp.route("/<branch_id>", methods=["PATCH"])
+@openapi_meta(
+    summary="Update branch",
+    tags=["Branches"],
+    request_body=BranchUpdateRequest,
+    responses={200: BranchResponse},
+)
 @jwt_required()
 def update_branch(branch_id: str) -> tuple[Response, int]:
     """Update a branch (Global Admin or owning Company Admin)."""
@@ -217,7 +253,7 @@ def update_branch(branch_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_branch_update_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(BranchUpdateRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
@@ -227,7 +263,7 @@ def update_branch(branch_id: str) -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="update_branch",
-            entity_type="branch",
+            entity_type=AuditEntityType.BRANCH,
             entity_id=branch.id,
             changes=changes or None,
         )
@@ -237,10 +273,15 @@ def update_branch(branch_id: str) -> tuple[Response, int]:
         return jsonify({"error": "A branch with this name already exists in the company"}), 400
 
     eq_count = Equipment.query.filter_by(branch_id=branch.id, is_active=True).count()
-    return jsonify(branch.to_dict(equipment_count=eq_count)), 200
+    return json_response(BranchResponse, branch.to_dict(equipment_count=eq_count), 200)
 
 
 @branches_bp.route("/<branch_id>", methods=["DELETE"])
+@openapi_meta(
+    summary="Delete branch",
+    tags=["Branches"],
+    responses={200: MessageResponse, 409: Error},
+)
 @jwt_required()
 def delete_branch(branch_id: str) -> tuple[Response, int]:
     """Delete an empty branch (guarded against assigned equipment and single-branch viewers)."""
@@ -303,7 +344,7 @@ def delete_branch(branch_id: str) -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="delete_branch",
-            entity_type="branch",
+            entity_type=AuditEntityType.BRANCH,
             entity_id=deleted_id,
             changes={"name": deleted_name},
         )
@@ -317,4 +358,4 @@ def delete_branch(branch_id: str) -> tuple[Response, int]:
             }
         ), 409
 
-    return jsonify({"message": "Branch deleted"}), 200
+    return json_response(MessageResponse, {"message": "Branch deleted"}, 200)

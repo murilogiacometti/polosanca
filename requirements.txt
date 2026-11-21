@@ -19,8 +19,9 @@ redis==5.0.1
 bcrypt==4.1.2
 python-dotenv==1.2.2
 
-# Validation
-marshmallow==3.26.2
+# Validation & OpenAPI
+pydantic==2.14.4
+PyYAML==6.0.4
 email-validator==2.1.0
 
 # Utilities

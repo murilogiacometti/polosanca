@@ -35,9 +35,7 @@ import {
   formatCompactAgePtBR,
 } from '../../utils/formatters';
 
-type CompanyRecord = Company & {
-  equipment_count?: number;
-};
+type CompanyRecord = Company;
 
 type CompanyStatusFilter = 'active' | 'inactive' | 'all';
 type CompanyHealthFilter = 'all' | 'critical';
@@ -131,7 +129,7 @@ function CompanyOverviewCard({
   onToggleCompanyStatus,
   onFastLaneSegment,
 }: CompanyOverviewCardProps) {
-  const totalEq = rollup.equipments.length || comp.equipment_count || comp.equipments_count || 0;
+  const totalEq = rollup.equipments.length || comp.equipment_count || 0;
   const totalBranches = comp.branches_count ?? 1;
   const hasCritical = rollup.critical > 0;
   const cardStatus = resolveCompanyCardStatus(rollup, totalEq);

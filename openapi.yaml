@@ -1,2614 +1,4847 @@
+# AUTO-GENERATED FILE — DO NOT EDIT MANUALLY.
+# Source of truth: app/schemas/ (Pydantic v2) + @openapi_meta decorators in app/routes/.
+# Regenerate with: python scripts/generate_openapi.py
 openapi: 3.0.3
 info:
-  title: Polo Sanca Refrigeration Monitoring API
-  description: |
-    Canonical OpenAPI 3.0 specification for the Polo Sanca multi-tenant refrigeration monitoring system (v1 MVP).
-
-    For product context, user flows, RBAC semantics, and Phase 2 roadmap, see `PRD.md`.
-
-    ## Authentication
-    - **User Authentication**: JWT access tokens (`1h` TTL) via `Authorization: Bearer <access_token>` and refresh tokens (`30d` TTL) on `/auth/refresh`
-    - **Equipment Authentication**: Per-equipment API keys via `X-API-Key: <key>` header (stored as `SHA-256` hashes at rest)
-
-    ## Rate Limiting
-    - `/auth/login`, `/auth/forgot-password`: 10 req/min per IP
-    - `/equipments/telemetry`: 12 req/min per equipment
-    - Authenticated user API calls: 100 req/min per user (`1000` req/min for Global Admin)
+  title: Polo Sanca Telemetry API
   version: 1.0.0
+  description: Multi-tenant SaaS telemetry platform for real-time monitoring of refrigeration and cold storage equipment.
+    Generated directly from Pydantic v2 models and Flask routes.
   contact:
-    name: Polo Sanca API Support
-    email: api@polosanca.com
-  license:
-    name: Proprietary
-
+    name: Polo Sanca Engineering
 servers:
-  - url: http://localhost:5000/v1
-    description: Local development server
-  - url: https://api-staging.polosanca.com/v1
-    description: Staging server
-  - url: https://api.polosanca.com/v1
-    description: Production server
-
-tags:
-  - name: Authentication
-    description: Login, token refresh, logout, profile, and password recovery
-  - name: Users
-    description: User invitations, activation, roles, and viewer branch access
-  - name: Companies
-    description: Tenant company management
-  - name: Branches
-    description: Company branch locations
-  - name: Equipment
-    description: Refrigeration equipment registration, status, and API key rotation
-  - name: Telemetry
-    description: Hardware ingestion, manual offline temperature entry, live snapshots, and CSV exports
-  - name: Alerts
-    description: Alert listing, acknowledgment, resolution, statistics, and CSV exports
-  - name: Alert Rules
-    description: Generic alert rule configuration (Global Admin CRUD, Company Admin read-only)
-  - name: Maintenance
-    description: Per-equipment maintenance logbook
-  - name: Audit Logs
-    description: Immutable administrative audit trail (Global Admin only)
-
+- url: http://localhost:5000/v1
+  description: Local Development
 paths:
-  /auth/login:
-    post:
-      tags: [Authentication]
-      summary: User login
-      description: Authenticate an active user and issue JWT `access_token` and `refresh_token`.
-      operationId: login
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: user@example.com
-                password:
-                  type: string
-                  format: password
-                  example: secure_password
-      responses:
-        '200':
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [access_token, refresh_token, user]
-                properties:
-                  access_token:
-                    type: string
-                  refresh_token:
-                    type: string
-                  user:
-                    $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /auth/logout:
-    post:
-      tags: [Authentication]
-      summary: User logout
-      description: Revoke current JWT JTI in Redis blocklist until expiration.
-      operationId: logout
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Logout successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /auth/refresh:
-    post:
-      tags: [Authentication]
-      summary: Refresh access token
-      description: Issue a new `access_token` using a valid `refresh_token` in the `Authorization` header.
-      operationId: refreshToken
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Access token refreshed
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [access_token]
-                properties:
-                  access_token:
-                    type: string
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /auth/me:
+  /alert-rules:
     get:
-      tags: [Authentication]
-      summary: Get current user profile
-      description: Return the currently authenticated user's profile and branch access scope.
-      operationId: getCurrentUser
+      summary: List alert rules
+      tags:
+      - Alert Rules
       security:
-        - bearerAuth: []
+      - BearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: scope
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/AlertRuleScope'
+          nullable: true
+      - name: equipment_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: rule_type
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/AlertRuleType'
+          nullable: true
+      - name: is_active
+        in: query
+        required: false
+        schema:
+          type: boolean
+          nullable: true
       responses:
         '200':
-          description: Current user profile
+          description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/AlertRulesListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    patch:
-      tags: [Authentication]
-      summary: Update current user profile
-      description: Update the authenticated user's own `name`.
-      operationId: updateCurrentUser
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create alert rule
+      tags:
+      - Alert Rules
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
+              $ref: '#/components/schemas/AlertRuleCreateRequest'
       responses:
-        '200':
-          description: Profile updated
+        '201':
+          description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/AlertRule'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alert-rules/{rule_id}:
+    delete:
+      summary: Delete alert rule
+      tags:
+      - Alert Rules
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get alert rule details
+      tags:
+      - Alert Rules
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRule'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update alert rule
+      tags:
+      - Alert Rules
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRule'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alert-rules/{rule_id}/statistics:
+    get:
+      summary: Get alert rule trigger statistics
+      tags:
+      - Alert Rules
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRuleStatisticsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts:
+    get:
+      summary: List alerts
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: equipment_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AlertStatus'
+          - enum:
+            - active,acknowledged
+            type: string
+          nullable: true
+      - name: severity
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/AlertSeverity'
+          nullable: true
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts/export:
+    get:
+      summary: Export alerts as CSV
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: equipment_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AlertStatus'
+          - enum:
+            - active,acknowledged
+            type: string
+          nullable: true
+      - name: severity
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/AlertSeverity'
+          nullable: true
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts/statistics:
+    get:
+      summary: Get active alert statistics
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: equipment_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertStatisticsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts/{alert_id}:
+    get:
+      summary: Get alert details
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts/{alert_id}/acknowledge:
+    post:
+      summary: Acknowledge alert
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertAcknowledgeRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /alerts/{alert_id}/resolve:
+    post:
+      summary: Resolve alert
+      tags:
+      - Alerts
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /audit-logs:
+    get:
+      summary: List audit logs
+      tags:
+      - Audit Logs
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          nullable: true
+      - name: page_token
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: entity_type
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/AuditEntityType'
+          nullable: true
+      - name: entity_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogsListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /auth/change-password:
     post:
-      tags: [Authentication]
-      summary: Change current user password
-      operationId: changePassword
+      summary: Change authenticated user password
+      tags:
+      - Authentication
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [current_password, new_password]
-              properties:
-                current_password:
-                  type: string
-                  format: password
-                new_password:
-                  type: string
-                  format: password
-                  minLength: 8
+              $ref: '#/components/schemas/ChangePasswordRequest'
       responses:
         '200':
-          description: Password changed successfully
+          description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /auth/forgot-password:
     post:
-      tags: [Authentication]
       summary: Request password reset email
-      description: Sends a 1-hour single-use reset token if the email matches an active user. Always returns `200 OK` to prevent email enumeration.
-      operationId: forgotPassword
+      tags:
+      - Authentication
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/ForgotPasswordRequest'
       responses:
         '200':
-          description: Reset instructions dispatched if account exists
+          description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/MessageResponse'
         '429':
-          $ref: '#/components/responses/TooManyRequests'
-
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/login:
+    post:
+      summary: Authenticate user and issue JWT tokens
+      tags:
+      - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/logout:
+    post:
+      summary: Revoke current JWT token
+      tags:
+      - Authentication
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/me:
+    get:
+      summary: Get current authenticated user
+      tags:
+      - Authentication
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update current user profile
+      tags:
+      - Authentication
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags:
+      - Authentication
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /auth/reset-password:
     post:
-      tags: [Authentication]
-      summary: Reset password with token
-      description: Redeem a valid 1-hour password reset token and set a new password.
-      operationId: resetPassword
+      summary: Reset password with reset token
+      tags:
+      - Authentication
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [token, new_password]
-              properties:
-                token:
-                  type: string
-                new_password:
-                  type: string
-                  format: password
-                  minLength: 8
+              $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/MessageResponse'
+        '429':
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /users:
-    get:
-      tags: [Users]
-      summary: List users
-      description: List users scoped to caller permissions (Global Admin all; Company Admin own company only).
-      operationId: listUsers
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: company_id
-          in: query
-          description: Filter by company (Global Admin only)
-          schema:
-            type: string
-        - name: role
-          in: query
-          schema:
-            type: string
-            enum: [global_admin, company_admin, company_viewer]
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, inactive, pending]
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-      responses:
-        '200':
-          description: Paginated user list
+          description: Bad Request
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  users:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/User'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /users/invite:
-    post:
-      tags: [Users]
-      summary: Invite a new user
-      description: "Create a `pending` user and send a 7-day single-use invitation link. Company Admins invite into their own company (`company_admin` or `company_viewer`); Global Admins can invite into any company or invite new `global_admin` users (`company_id: null`)."
-      operationId: inviteUser
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name, email, role]
-              properties:
-                name:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                role:
-                  type: string
-                  enum: [global_admin, company_admin, company_viewer]
-                company_id:
-                  type: string
-                  nullable: true
-                branch_access:
-                  $ref: '#/components/schemas/BranchAccess'
-      responses:
-        '201':
-          description: User invited successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  user_id:
-                    type: string
-                  invitation_sent:
-                    type: boolean
-                  user:
-                    $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /users/accept-invitation:
-    post:
-      tags: [Users]
-      summary: Accept user invitation
-      description: Redeem a 7-day invitation token, set initial password, and transition user status from `pending` to `active`.
-      operationId: acceptInvitation
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [token, password]
-              properties:
-                token:
-                  type: string
-                password:
-                  type: string
-                  format: password
-                  minLength: 8
-      responses:
-        '200':
-          description: Account activated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /users/{user_id}:
-    get:
-      tags: [Users]
-      summary: Get user details
-      description: Retrieve user details including `branch_access` (Global Admin or owning Company Admin).
-      operationId: getUser
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserIdParam'
-      responses:
-        '200':
-          description: User details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Users]
-      summary: Update user
-      description: Update user name, status, role, or viewer branch permissions (Global Admin, or owning Company Admin without escalating to `global_admin`).
-      operationId: updateUser
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                status:
-                  type: string
-                  enum: [active, inactive]
-                role:
-                  type: string
-                  enum: [global_admin, company_admin, company_viewer]
-                branch_access:
-                  $ref: '#/components/schemas/BranchAccess'
-      responses:
-        '200':
-          description: User updated successfully
+          description: Not Found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags: [Users]
-      summary: Deactivate or anonymize user
-      description: Soft-deactivate user (`status = inactive`) or anonymize PII per LGPD while preserving historical foreign keys (Global Admin or owning Company Admin).
-      operationId: deleteUser
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserIdParam'
-      responses:
-        '204':
-          description: User deactivated successfully
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /users/{user_id}/resend-invitation:
-    post:
-      tags: [Users]
-      summary: Resend user invitation
-      description: Issue a fresh 7-day token and resend the invitation email for a `pending` user (Global Admin or owning Company Admin).
-      operationId: resendInvitation
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserIdParam'
-      responses:
-        '200':
-          description: Invitation resent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /companies:
-    get:
-      tags: [Companies]
-      summary: List companies
-      description: List all tenant companies (Global Admin only).
-      operationId: listCompanies
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, inactive]
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-      responses:
-        '200':
-          description: Paginated company list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  companies:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Company'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-    post:
-      tags: [Companies]
-      summary: Create company
-      description: Create a new tenant company (Global Admin only).
-      operationId: createCompany
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                contact_email:
-                  type: string
-                  format: email
-                contact_phone:
-                  type: string
-      responses:
-        '201':
-          description: Company created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Company'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /companies/{company_id}:
-    get:
-      tags: [Companies]
-      summary: Get company details
-      description: Get company profile (Global Admin, or Company users for their own company).
-      operationId: getCompany
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: company_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Company details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Company'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Companies]
-      summary: Update company
-      description: Update company profile (Global Admin or own Company Admin; `status` changes restricted to Global Admin).
-      operationId: updateCompany
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: company_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                contact_email:
-                  type: string
-                  format: email
-                contact_phone:
-                  type: string
-                status:
-                  type: string
-                  enum: [active, inactive]
-      responses:
-        '200':
-          description: Company updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Company'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+                $ref: '#/components/schemas/Error'
   /branches:
     get:
-      tags: [Branches]
       summary: List branches
-      description: List branches filtered by tenant and viewer branch restrictions.
-      operationId: listBranches
+      tags:
+      - Branches
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - name: company_id
-          in: query
-          description: Filter by company (Global Admin only; auto-scoped for Company users)
-          schema:
-            type: string
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
       responses:
         '200':
-          description: Paginated branch list
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  branches:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Branch'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
+                $ref: '#/components/schemas/BranchesListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
-      tags: [Branches]
-      summary: Create branch
-      description: Create a branch (Global Admin specifies `company_id`; Company Admin creates within own company).
-      operationId: createBranch
+      summary: Create a new branch
+      tags:
+      - Branches
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, address]
-              properties:
-                company_id:
-                  type: string
-                  description: Required for Global Admin; inferred for Company Admin
-                name:
-                  type: string
-                address:
-                  type: string
-                manager_contact:
-                  type: string
-                  nullable: true
+              $ref: '#/components/schemas/BranchCreateRequest'
       responses:
         '201':
-          description: Branch created successfully
+          description: Created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Branch'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /branches/{branch_id}:
-    get:
-      tags: [Branches]
-      summary: Get branch details
-      description: Get branch details (enforces company ownership and viewer branch restriction).
-      operationId: getBranch
+    delete:
+      summary: Delete branch
+      tags:
+      - Branches
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/BranchIdParam'
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
-          description: Branch details
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get branch by ID
+      tags:
+      - Branches
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Branch'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     patch:
-      tags: [Branches]
       summary: Update branch
-      description: Update branch details (Global Admin or owning Company Admin).
-      operationId: updateBranch
+      tags:
+      - Branches
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/BranchIdParam'
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                address:
-                  type: string
-                manager_contact:
-                  type: string
-                  nullable: true
+              $ref: '#/components/schemas/BranchUpdateRequest'
       responses:
         '200':
-          description: Branch updated
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Branch'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags: [Branches]
-      summary: Delete branch
-      description: Delete branch (Global Admin or owning Company Admin). Returns `409 Conflict` if equipment is still assigned or if deletion would leave a restricted viewer with zero assigned branches.
-      operationId: deleteBranch
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /companies:
+    get:
+      summary: List companies
+      tags:
+      - Companies
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/BranchIdParam'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: status
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/CompanyStatus'
+          nullable: true
       responses:
-        '204':
-          description: Branch deleted successfully
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompaniesListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a new company
+      tags:
+      - Companies
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /companies/{company_id}:
+    delete:
+      summary: Deactivate company
+      tags:
+      - Companies
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeactivateCompanyResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get company by ID
+      tags:
+      - Companies
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update company
+      tags:
+      - Companies
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /equipments:
     get:
-      tags: [Equipment]
-      summary: List equipment
-      description: List equipment filtered by tenant and viewer branch permissions.
-      operationId: listEquipment
+      summary: List equipments
+      tags:
+      - Equipments
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - name: company_id
-          in: query
-          description: Filter by company (Global Admin only)
-          schema:
-            type: string
-        - name: branch_id
-          in: query
-          schema:
-            type: string
-        - name: type
-          in: query
-          schema:
-            type: string
-            enum: [freezer, refrigerator, cold_room]
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [operational, warning, critical, offline]
-        - name: search
-          in: query
-          description: Substring search on equipment `serial`
-          schema:
-            type: string
-        - name: include_inactive
-          in: query
-          description: Include soft-deactivated (`is_active = false`) equipment (default false)
-          schema:
-            type: boolean
-            default: false
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: type
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/EquipmentType'
+          nullable: true
+      - name: status
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/EquipmentStatus'
+          nullable: true
+      - name: search
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: include_inactive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          nullable: true
       responses:
         '200':
-          description: Paginated equipment list
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                required: [equipment, pagination]
-                properties:
-                  equipment:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Equipment'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
+                $ref: '#/components/schemas/EquipmentsListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
-      tags: [Equipment]
       summary: Register new equipment
-      description: Register equipment in a branch (Global Admin or owning Company Admin). Derives `company_id` from `branch_id`, generates a secure API key, stores its `SHA-256` hash, and returns the plaintext `api_key` once.
-      operationId: createEquipment
+      tags:
+      - Equipments
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [serial, type, branch_id]
-              properties:
-                serial:
-                  type: string
-                type:
-                  type: string
-                  enum: [freezer, refrigerator, cold_room]
-                branch_id:
-                  type: string
-                manufacturer:
-                  type: string
-                model:
-                  type: string
-                installed_at:
-                  type: string
-                  format: date-time
+              $ref: '#/components/schemas/EquipmentCreateRequest'
       responses:
         '201':
-          description: Equipment registered (plaintext `api_key` returned once)
+          description: Created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/EquipmentCreated'
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /equipments/{equipment_id}:
-    get:
-      tags: [Equipment]
-      summary: Get equipment details
-      description: Get equipment metadata, latest readings, and maintenance dates (never exposes `api_key`).
-      operationId: getEquipment
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-      responses:
-        '200':
-          description: Equipment details
+          description: Bad Request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Equipment'
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Equipment]
-      summary: Update equipment
-      description: Update equipment metadata or branch assignment within the same company (Global Admin or owning Company Admin).
-      operationId: updateEquipment
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                type:
-                  type: string
-                  enum: [freezer, refrigerator, cold_room]
-                branch_id:
-                  type: string
-                manufacturer:
-                  type: string
-                model:
-                  type: string
-                installed_at:
-                  type: string
-                  format: date-time
-      responses:
-        '200':
-          description: Equipment updated
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Equipment'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags: [Equipment]
-      summary: Deactivate equipment
-      description: Deactivate equipment (Global Admin or owning Company Admin).
-      operationId: deleteEquipment
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-      responses:
-        '204':
-          description: Equipment deactivated
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /equipments/{equipment_id}/rotate-api-key:
-    post:
-      tags: [Equipment]
-      summary: Rotate equipment API key
-      description: Generate a new API key, store its `SHA-256` hash (invalidating the previous key immediately), and return the new plaintext `api_key` once (Global Admin or owning Company Admin).
-      operationId: rotateEquipmentApiKey
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-      responses:
-        '200':
-          description: API key rotated
+          description: Forbidden
           content:
             application/json:
               schema:
-                type: object
-                required: [equipment_id, api_key]
-                properties:
-                  equipment_id:
-                    type: string
-                  api_key:
-                    type: string
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /equipments/telemetry:
     post:
-      tags: [Telemetry]
-      summary: Submit hardware telemetry data
-      description: Ingest a single 7-metric hardware reading (`application/json` or `application/x-www-form-urlencoded`). Supports optional idempotency deduplication via `Idempotency-Key` header or `request_id` body field (AIP-155). Captures server UTC receipt timestamp (`source = "device"`), updates `last_seen_at`, transitions `offline` to `operational` if no active alerts exist, and enqueues Celery rule evaluation.
-      operationId: submitTelemetry
+      summary: Ingest hardware telemetry reading
+      tags:
+      - Telemetry
       security:
-        - apiKeyAuth: []
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: false
-          description: Optional client-generated idempotency key (1–128 chars) to safely retry telemetry submissions without creating duplicate rows (AIP-155). Must match `request_id` if both are supplied.
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 128
+      - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TelemetryData'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TelemetryData'
+              $ref: '#/components/schemas/HardwareTelemetryRequest'
       responses:
         '200':
-          description: Data received successfully (or replayed idempotently when `deduplicated = true`)
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                required: [success, message, timestamp, record_id]
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  timestamp:
-                    type: string
-                    format: date-time
-                  record_id:
-                    type: string
-                  deduplicated:
-                    type: boolean
-                    description: Present and `true` when an identical `request_id` / `Idempotency-Key` was already processed for this equipment unit
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/HardwareTelemetryResponse'
         '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /equipments/{equipment_id}/telemetry/manual:
-    post:
-      tags: [Telemetry]
-      summary: Log manual offline temperature reading
-      description: Record a manual thermometer temperature reading when equipment status is `offline` (Global Admin or owning Company Admin). Tags `source = "manual"` and `recorded_by = current_user.id`, leaves `pressure` and component states `null`, and keeps equipment status `offline`.
-      operationId: submitManualTelemetry
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [temperature]
-              properties:
-                temperature:
-                  type: number
-                  format: float
-                  example: 4.8
-                recorded_at:
-                  type: string
-                  format: date-time
-                  description: Optional observed UTC timestamp; defaults to server UTC time
-                notes:
-                  type: string
-                  nullable: true
-      responses:
-        '201':
-          description: Manual temperature reading recorded
+          description: Too Many Requests
           content:
             application/json:
               schema:
-                type: object
-                required: [success, message, timestamp, record_id, source, recorded_by]
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  timestamp:
-                    type: string
-                    format: date-time
-                  record_id:
-                    type: string
-                  source:
-                    type: string
-                    enum: [manual]
-                  recorded_by:
-                    type: string
+                $ref: '#/components/schemas/Error'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /equipments/{equipment_id}/telemetry:
-    get:
-      tags: [Telemetry]
-      summary: Get historical telemetry data
-      description: Retrieve historical telemetry (`device` and `manual` entries) for accessible equipment.
-      operationId: getEquipmentTelemetry
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: interval
-          in: query
-          schema:
-            type: string
-            enum: [raw, 5min, 1hour, 1day]
-            default: raw
-        - name: fields
-          in: query
-          description: Comma-separated list of fields to include
-          schema:
-            type: string
-            example: temperature,pressure,door
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageTokenParam'
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 100
-            minimum: 1
-            maximum: 1000
-      responses:
-        '200':
-          description: Historical telemetry data
+          description: Not Found
           content:
             application/json:
               schema:
-                type: object
-                required: [equipment_id, serial, count, data, pagination]
-                properties:
-                  equipment_id:
-                    type: string
-                  serial:
-                    type: string
-                  count:
-                    type: integer
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/TelemetryDataPoint'
-                  next_page_token:
-                    type: string
-                    nullable: true
-                    description: Opaque keyset cursor for the next page (AIP-158); `null` when no further results exist
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /equipments/{equipment_id}/telemetry/export:
-    get:
-      tags: [Telemetry]
-      summary: Export equipment telemetry as CSV
-      description: "Stream historical telemetry (`device` and `manual` entries) as `text/csv` for accessible equipment. `interval=raw` is capped at a maximum 90-day date range per download (`400 Bad Request` if exceeded); `1hour` and `1day` aggregates support up to 2 years."
-      operationId: exportEquipmentTelemetryCsv
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: interval
-          in: query
-          schema:
-            type: string
-            enum: [raw, 5min, 1hour, 1day]
-            default: raw
-      responses:
-        '200':
-          description: Streamed CSV file download
-          content:
-            text/csv:
-              schema:
-                type: string
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /telemetry/realtime:
-    get:
-      tags: [Telemetry]
-      summary: Get latest snapshot for accessible equipment
-      description: Used by the dashboard's 30-second HTTP polling loop.
-      operationId: getRealtimeTelemetry
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: branch_id
-          in: query
-          schema:
-            type: string
-        - name: equipment_ids
-          in: query
-          description: Comma-separated list of equipment IDs
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Latest equipment snapshots
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [equipment]
-                properties:
-                  equipment:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/RealtimeTelemetry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /alerts:
-    get:
-      tags: [Alerts]
-      summary: List alerts
-      description: List alerts scoped by user tenant and viewer branch permissions.
-      operationId: listAlerts
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: equipment_id
-          in: query
-          schema:
-            type: string
-        - name: branch_id
-          in: query
-          schema:
-            type: string
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, acknowledged, resolved]
-        - name: severity
-          in: query
-          schema:
-            type: string
-            enum: [warning, critical]
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-      responses:
-        '200':
-          description: Paginated alert list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  alerts:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Alert'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /alerts/export:
-    get:
-      tags: [Alerts]
-      summary: Export alerts as CSV
-      description: Download filtered alerts as `text/csv` (scoped by tenant and branch permissions).
-      operationId: exportAlertsCsv
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: equipment_id
-          in: query
-          schema:
-            type: string
-        - name: branch_id
-          in: query
-          schema:
-            type: string
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, acknowledged, resolved]
-        - name: severity
-          in: query
-          schema:
-            type: string
-            enum: [warning, critical]
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: CSV file download
-          content:
-            text/csv:
-              schema:
-                type: string
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /alerts/statistics:
-    get:
-      tags: [Alerts]
-      summary: Get alert statistics
-      description: Active alert counts grouped by severity and rule type (scoped by user permissions).
-      operationId: getAlertStatistics
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Alert statistics
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total_active:
-                    type: integer
-                  by_severity:
-                    type: object
-                    properties:
-                      warning:
-                        type: integer
-                      critical:
-                        type: integer
-                  by_type:
-                    type: object
-                    additionalProperties:
-                      type: integer
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /alerts/{alert_id}:
-    get:
-      tags: [Alerts]
-      summary: Get alert details
-      operationId: getAlert
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/AlertIdParam'
-      responses:
-        '200':
-          description: Alert details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Alert'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /alerts/{alert_id}/acknowledge:
-    post:
-      tags: [Alerts]
-      summary: Acknowledge an alert
-      description: Acknowledge an active alert with optional notes (Global Admin or owning Company Admin; custom state-transition action per AIP-136).
-      operationId: acknowledgeAlert
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/AlertIdParam'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                notes:
-                  type: string
-      responses:
-        '200':
-          description: Alert acknowledged
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Alert'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /alerts/{alert_id}/resolve:
-    post:
-      tags: [Alerts]
-      summary: Manually resolve an alert
-      description: Mark an alert as resolved (Global Admin or owning Company Admin; custom state-transition action per AIP-136).
-      operationId: resolveAlert
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/AlertIdParam'
-      responses:
-        '200':
-          description: Alert resolved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Alert'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /alert-rules:
-    get:
-      tags: [Alert Rules]
-      summary: List alert rules
-      description: Global Admins view all rules; Company Admins have read-only access to `global` rules plus rules scoped to their company or its equipment.
-      operationId: listAlertRules
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: scope
-          in: query
-          schema:
-            type: string
-            enum: [global, company, equipment]
-        - name: company_id
-          in: query
-          description: Filter by company (Global Admin only)
-          schema:
-            type: string
-        - name: equipment_id
-          in: query
-          schema:
-            type: string
-        - name: rule_type
-          in: query
-          schema:
-            type: string
-            enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
-        - name: is_active
-          in: query
-          schema:
-            type: boolean
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-      responses:
-        '200':
-          description: Paginated alert rules
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  alert_rules:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AlertRule'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-    post:
-      tags: [Alert Rules]
-      summary: Create alert rule
-      description: Create a generic alert rule (Global Admin only). `threshold_value` and `comparison_operator` are required for numeric rules (`temperature_*`, `pressure_*`) and `null` for `door_open` and `equipment_offline`.
-      operationId: createAlertRule
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AlertRuleCreate'
-      responses:
-        '201':
-          description: Alert rule created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AlertRule'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /alert-rules/{rule_id}:
-    get:
-      tags: [Alert Rules]
-      summary: Get alert rule details
-      description: Get rule details (Global Admin, or Company Admin if rule applies to their company/equipment).
-      operationId: getAlertRule
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RuleIdParam'
-      responses:
-        '200':
-          description: Alert rule details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AlertRule'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Alert Rules]
-      summary: Update alert rule
-      description: Update an alert rule (Global Admin only).
-      operationId: updateAlertRule
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RuleIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                threshold_value:
-                  type: number
-                  nullable: true
-                comparison_operator:
-                  type: string
-                  enum: ['>', '<', '=', '>=', '<=']
-                  nullable: true
-                duration_seconds:
-                  type: integer
-                severity:
-                  type: string
-                  enum: [warning, critical]
-                message_template:
-                  type: string
-                is_active:
-                  type: boolean
-      responses:
-        '200':
-          description: Alert rule updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AlertRule'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+                $ref: '#/components/schemas/Error'
+  /equipments/{equipment_id}:
     delete:
-      tags: [Alert Rules]
-      summary: Delete alert rule
-      description: Delete an alert rule (Global Admin only; returns `204 No Content` per AIP-135).
-      operationId: deleteAlertRule
+      summary: Deactivate equipment
+      tags:
+      - Equipments
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/RuleIdParam'
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '204':
-          description: Alert rule deleted
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get equipment details
+      tags:
+      - Equipments
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update equipment
+      tags:
+      - Equipments
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /equipments/{equipment_id}/alert-rules:
     get:
-      tags: [Alert Rules]
-      summary: Get applicable alert rules for equipment
-      description: List all rules applicable to a specific equipment unit ordered by priority per `(rule_type, severity)` pair (accessible to Global Admin, owning Company Admin, and permitted Company Viewers).
-      operationId: getEquipmentAlertRules
+      summary: List alert rules applicable to equipment
+      tags:
+      - Equipments
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
-          description: Applicable rules with effective status
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  equipment_id:
-                    type: string
-                  applicable_rules:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AlertRuleWithPriority'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /alert-rules/{rule_id}/statistics:
-    get:
-      tags: [Alert Rules]
-      summary: Get alert rule trigger statistics
-      description: Trigger counts for a rule (Global Admin only).
-      operationId: getAlertRuleStatistics
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RuleIdParam'
-      responses:
-        '200':
-          description: Rule statistics
+                $ref: '#/components/schemas/EquipmentAlertRulesResponse'
+        '400':
+          description: Bad Request
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  rule_id:
-                    type: string
-                  total_triggers:
-                    type: integer
-                  triggers_last_30_days:
-                    type: integer
-                  affected_equipments:
-                    type: integer
-                  avg_triggers_per_equipment:
-                    type: number
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /equipments/{equipment_id}/maintenance-records:
     get:
-      tags: [Maintenance]
-      summary: Get equipment maintenance logbook
-      description: Paginated maintenance records for accessible equipment.
-      operationId: getMaintenanceRecords
+      summary: List maintenance records for equipment
+      tags:
+      - Maintenance
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
       responses:
         '200':
-          description: Paginated maintenance history
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                required: [equipment_id, maintenance_records, pagination]
-                properties:
-                  equipment_id:
-                    type: string
-                  maintenance_records:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/MaintenanceRecord'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
+                $ref: '#/components/schemas/MaintenanceRecordsListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
-      tags: [Maintenance]
-      summary: Log maintenance activity
-      description: Create a maintenance record and sync `last_maintenance_date` / `next_maintenance_date` on the equipment (Global Admin or owning Company Admin).
-      operationId: createMaintenanceRecord
+      summary: Create maintenance record
+      tags:
+      - Maintenance
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/EquipmentIdParam'
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [type, description, performed_by]
-              properties:
-                type:
-                  type: string
-                  enum: [routine_inspection, repair, part_replacement, emergency_fix]
-                description:
-                  type: string
-                performed_by:
-                  type: string
-                notes:
-                  type: string
-                  nullable: true
-                next_maintenance_date:
-                  type: string
-                  format: date
-                  nullable: true
+              $ref: '#/components/schemas/MaintenanceCreateRequest'
       responses:
         '201':
-          description: Maintenance record created
+          description: Created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MaintenanceRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /maintenance-records/{record_id}:
-    get:
-      tags: [Maintenance]
-      summary: Get maintenance record
-      operationId: getMaintenanceRecord
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RecordIdParam'
-      responses:
-        '200':
-          description: Maintenance record details
+          description: Bad Request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MaintenanceRecord'
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Maintenance]
-      summary: Update maintenance record
-      description: Update a maintenance record (Global Admin or owning Company Admin).
-      operationId: updateMaintenanceRecord
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /equipments/{equipment_id}/rotate-api-key:
+    post:
+      summary: Rotate equipment API key
+      tags:
+      - Equipments
       security:
-        - bearerAuth: []
+      - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/RecordIdParam'
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateApiKeyResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /equipments/{equipment_id}/telemetry:
+    get:
+      summary: Get historical equipment telemetry
+      tags:
+      - Telemetry
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: interval
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/TelemetryInterval'
+          nullable: true
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: page_token
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: fields
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryHistoryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /equipments/{equipment_id}/telemetry/export:
+    get:
+      summary: Export equipment telemetry as CSV
+      tags:
+      - Telemetry
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      - name: interval
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/TelemetryInterval'
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /equipments/{equipment_id}/telemetry/manual:
+    post:
+      summary: Log manual temperature reading
+      tags:
+      - Telemetry
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                type:
-                  type: string
-                  enum: [routine_inspection, repair, part_replacement, emergency_fix]
-                description:
-                  type: string
-                performed_by:
-                  type: string
-                notes:
-                  type: string
-                  nullable: true
-                next_maintenance_date:
-                  type: string
-                  format: date
-                  nullable: true
+              $ref: '#/components/schemas/ManualTelemetryRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualTelemetryResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /maintenance-records/{record_id}:
+    delete:
+      summary: Delete maintenance record
+      tags:
+      - Maintenance
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: record_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
-          description: Maintenance record updated
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get maintenance record details
+      tags:
+      - Maintenance
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: record_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MaintenanceRecord'
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags: [Maintenance]
-      summary: Delete maintenance record
-      description: Delete a maintenance record (Global Admin or owning Company Admin).
-      operationId: deleteMaintenanceRecord
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RecordIdParam'
-      responses:
-        '204':
-          description: Maintenance record deleted
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /audit-logs:
-    get:
-      tags: [Audit Logs]
-      summary: Query administrative audit logs
-      description: List immutable administrative audit events (Global Admin only).
-      operationId: listAuditLogs
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: user_id
-          in: query
-          schema:
-            type: string
-        - name: entity_type
-          in: query
-          schema:
-            type: string
-        - name: entity_id
-          in: query
-          schema:
-            type: string
-        - name: action
-          in: query
-          schema:
-            type: string
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageTokenParam'
-        - $ref: '#/components/parameters/LimitParam'
-      responses:
-        '200':
-          description: Paginated audit logs
+          description: Bad Request
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  audit_logs:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
-                  next_page_token:
-                    type: string
-                    nullable: true
-                    description: Opaque keyset cursor for the next page (AIP-158); `null` when no further results exist
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          $ref: '#/components/responses/Forbidden'
-
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update maintenance record
+      tags:
+      - Maintenance
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: record_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceRecord'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /telemetry/overview:
+    get:
+      summary: Get 24h telemetry sparklines and thresholds
+      tags:
+      - Telemetry
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: equipment_ids
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryOverviewResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /telemetry/realtime:
+    get:
+      summary: Get real-time equipment telemetry
+      tags:
+      - Telemetry
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: branch_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: equipment_ids
+        in: query
+        required: false
+        schema:
+          type: string
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealtimeTelemetryListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users:
+    get:
+      summary: List users
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          nullable: true
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          format: uuid
+          type: string
+          nullable: true
+      - name: role
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/UserRole'
+          nullable: true
+      - name: status
+        in: query
+        required: false
+        schema:
+          allOf:
+          - $ref: '#/components/schemas/UserStatus'
+          nullable: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a new user directly
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/accept-invitation:
+    post:
+      summary: Accept user invitation
+      tags:
+      - Users
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvitationRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '429':
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/invite:
+    post:
+      summary: Invite a new user
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInviteRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInviteResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/{user_id}:
+    delete:
+      summary: Deactivate user
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get user details
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update user
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/{user_id}/resend-invitation:
+    post:
+      summary: Resend user invitation
+      tags:
+      - Users
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResendInvitationResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
-    bearerAuth:
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token obtained from `/auth/login` or `/auth/refresh`
-
-    apiKeyAuth:
+    ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: Per-equipment API key for hardware telemetry ingestion
-
-  parameters:
-    PageParam:
-      name: page
-      in: query
-      schema:
-        type: integer
-        default: 1
-        minimum: 1
-    PageTokenParam:
-      name: page_token
-      in: query
-      description: Opaque URL-safe base64 keyset cursor returned as `next_page_token` by the previous page (AIP-158). When supplied, overrides `page` offset pagination for O(1) index seeks.
-      schema:
-        type: string
-    LimitParam:
-      name: limit
-      in: query
-      schema:
-        type: integer
-        default: 20
-        minimum: 1
-        maximum: 100
-    UserIdParam:
-      name: user_id
-      in: path
-      required: true
-      schema:
-        type: string
-    BranchIdParam:
-      name: branch_id
-      in: path
-      required: true
-      schema:
-        type: string
-    EquipmentIdParam:
-      name: equipment_id
-      in: path
-      required: true
-      schema:
-        type: string
-    AlertIdParam:
-      name: alert_id
-      in: path
-      required: true
-      schema:
-        type: string
-    RuleIdParam:
-      name: rule_id
-      in: path
-      required: true
-      schema:
-        type: string
-    RecordIdParam:
-      name: record_id
-      in: path
-      required: true
-      schema:
-        type: string
-
   schemas:
-    User:
+    AcceptInvitationRequest:
+      properties:
+        token:
+          minLength: 1
+          title: Token
+          type: string
+        password:
+          minLength: 8
+          title: Password
+          type: string
+      required:
+      - token
+      - password
       type: object
+    Alert:
       properties:
         id:
+          format: uuid
+          title: Id
           type: string
-        name:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
           type: string
-        email:
+        alert_rule_id:
+          format: uuid
           type: string
-          format: email
-        role:
+          nullable: true
+          title: Alert Rule Id
+        serial:
           type: string
-          enum: [global_admin, company_admin, company_viewer]
+          nullable: true
+          title: Serial
+        branch_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Branch Id
         company_id:
+          format: uuid
           type: string
           nullable: true
-        branch_access:
-          $ref: '#/components/schemas/BranchAccess'
-        status:
-          type: string
-          enum: [active, inactive, pending]
-        created_at:
-          type: string
-          format: date-time
-        last_login_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    BranchAccess:
-      type: object
-      required: [type]
-      properties:
+          title: Company Id
         type:
-          type: string
-          enum: [full, restricted]
-        branches:
-          type: array
-          items:
-            type: string
-          description: Assigned branch IDs (minimum 1 required when `type = restricted`)
-
-    Company:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
+          $ref: '#/components/schemas/AlertRuleType'
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        message:
+          title: Message
           type: string
         status:
-          type: string
-          enum: [active, inactive]
-        branches_count:
-          type: integer
-        equipment_count:
-          type: integer
-        contact_email:
-          type: string
-          nullable: true
-        contact_phone:
-          type: string
-          nullable: true
-        created_at:
-          type: string
+          $ref: '#/components/schemas/AlertStatus'
+        acknowledged_at:
           format: date-time
-
-    Branch:
+          type: string
+          nullable: true
+          title: Acknowledged At
+        acknowledged_by:
+          format: uuid
+          type: string
+          nullable: true
+          title: Acknowledged By
+        acknowledgment_notes:
+          type: string
+          nullable: true
+          title: Acknowledgment Notes
+        resolved_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Resolved At
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+      required:
+      - id
+      - equipment_id
+      - type
+      - severity
+      - message
+      - status
       type: object
+    AlertAcknowledgeRequest:
+      properties:
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+      type: object
+    AlertRule:
       properties:
         id:
+          format: uuid
+          title: Id
           type: string
         name:
+          title: Name
+          type: string
+        description:
+          type: string
+          nullable: true
+          title: Description
+        rule_type:
+          $ref: '#/components/schemas/AlertRuleType'
+        threshold_value:
+          type: number
+          nullable: true
+          title: Threshold Value
+        comparison_operator:
+          allOf:
+          - $ref: '#/components/schemas/ComparisonOperator'
+          nullable: true
+        duration_seconds:
+          title: Duration Seconds
+          type: integer
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        message_template:
+          type: string
+          nullable: true
+          title: Message Template
+        scope:
+          $ref: '#/components/schemas/AlertRuleScope'
+        scope_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Scope Id
+        is_active:
+          title: Is Active
+          type: boolean
+        created_by:
+          format: uuid
+          type: string
+          nullable: true
+          title: Created By
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+        updated_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Updated At
+        priority:
+          type: integer
+          nullable: true
+          title: Priority
+        is_effective:
+          type: boolean
+          nullable: true
+          title: Is Effective
+      required:
+      - id
+      - name
+      - rule_type
+      - duration_seconds
+      - severity
+      - scope
+      - is_active
+      type: object
+    AlertRuleCreateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        description:
+          type: string
+          nullable: true
+          title: Description
+        rule_type:
+          $ref: '#/components/schemas/AlertRuleType'
+        threshold_value:
+          type: number
+          nullable: true
+          title: Threshold Value
+        comparison_operator:
+          allOf:
+          - $ref: '#/components/schemas/ComparisonOperator'
+          nullable: true
+        duration_seconds:
+          default: 300
+          minimum: 0
+          title: Duration Seconds
+          type: integer
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        message_template:
+          type: string
+          nullable: true
+          title: Message Template
+        scope:
+          $ref: '#/components/schemas/AlertRuleScope'
+        scope_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Scope Id
+        is_active:
+          default: true
+          title: Is Active
+          type: boolean
+      required:
+      - name
+      - rule_type
+      - severity
+      - scope
+      type: object
+    AlertRuleScope:
+      enum:
+      - global
+      - company
+      - equipment
+      type: string
+    AlertRuleStatisticsResponse:
+      properties:
+        rule_id:
+          format: uuid
+          title: Rule Id
+          type: string
+        total_triggers:
+          title: Total Triggers
+          type: integer
+        triggers_last_30_days:
+          title: Triggers Last 30 Days
+          type: integer
+        affected_equipments:
+          title: Affected Equipments
+          type: integer
+        avg_triggers_per_equipment:
+          title: Avg Triggers Per Equipment
+          type: number
+      required:
+      - rule_id
+      - total_triggers
+      - triggers_last_30_days
+      - affected_equipments
+      - avg_triggers_per_equipment
+      type: object
+    AlertRuleType:
+      enum:
+      - temperature_high
+      - temperature_low
+      - pressure_high
+      - pressure_low
+      - door_open
+      - equipment_offline
+      type: string
+    AlertRuleUpdateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          nullable: true
+          title: Name
+        description:
+          type: string
+          nullable: true
+          title: Description
+        threshold_value:
+          type: number
+          nullable: true
+          title: Threshold Value
+        comparison_operator:
+          allOf:
+          - $ref: '#/components/schemas/ComparisonOperator'
+          nullable: true
+        duration_seconds:
+          minimum: 0
+          type: integer
+          nullable: true
+          title: Duration Seconds
+        severity:
+          allOf:
+          - $ref: '#/components/schemas/AlertSeverity'
+          nullable: true
+        message_template:
+          type: string
+          nullable: true
+          title: Message Template
+        is_active:
+          type: boolean
+          nullable: true
+          title: Is Active
+      type: object
+    AlertRulesListResponse:
+      properties:
+        alert_rules:
+          items:
+            $ref: '#/components/schemas/AlertRule'
+          title: Alert Rules
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - alert_rules
+      - pagination
+      type: object
+    AlertSeverity:
+      enum:
+      - warning
+      - critical
+      type: string
+    AlertSeverityCounts:
+      properties:
+        warning:
+          default: 0
+          title: Warning
+          type: integer
+        critical:
+          default: 0
+          title: Critical
+          type: integer
+      type: object
+    AlertStatisticsResponse:
+      properties:
+        total_active:
+          title: Total Active
+          type: integer
+        by_severity:
+          $ref: '#/components/schemas/AlertSeverityCounts'
+        by_type:
+          additionalProperties:
+            type: integer
+          propertyNames:
+            $ref: '#/components/schemas/AlertRuleType'
+          title: By Type
+          type: object
+      required:
+      - total_active
+      type: object
+    AlertStatus:
+      enum:
+      - active
+      - acknowledged
+      - resolved
+      type: string
+    AlertsListResponse:
+      properties:
+        alerts:
+          items:
+            $ref: '#/components/schemas/Alert'
+          title: Alerts
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - alerts
+      - pagination
+      type: object
+    AuditEntityType:
+      enum:
+      - company
+      - branch
+      - user
+      - equipment
+      - alert
+      - alert_rule
+      - maintenance_record
+      type: string
+    AuditLog:
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        user_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: User Id
+        action:
+          title: Action
+          type: string
+        entity_type:
+          $ref: '#/components/schemas/AuditEntityType'
+        entity_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Entity Id
+        changes:
+          additionalProperties: true
+          type: object
+          nullable: true
+          title: Changes
+        ip_address:
+          type: string
+          nullable: true
+          title: Ip Address
+        user_agent:
+          type: string
+          nullable: true
+          title: User Agent
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+      required:
+      - id
+      - action
+      - entity_type
+      type: object
+    AuditLogsListResponse:
+      properties:
+        audit_logs:
+          items:
+            $ref: '#/components/schemas/AuditLog'
+          title: Audit Logs
+          type: array
+        next_page_token:
+          type: string
+          nullable: true
+          title: Next Page Token
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - audit_logs
+      - pagination
+      type: object
+    BinaryDeviceState:
+      enum:
+      - 'on'
+      - 'off'
+      type: string
+    Branch:
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        company_id:
+          format: uuid
+          title: Company Id
+          type: string
+        name:
+          title: Name
           type: string
         address:
+          type: string
+          nullable: true
+          title: Address
+        manager_contact:
+          type: string
+          nullable: true
+          title: Manager Contact
+        equipment_count:
+          type: integer
+          nullable: true
+          title: Equipment Count
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+        updated_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Updated At
+      required:
+      - id
+      - company_id
+      - name
+      type: object
+    BranchAccess:
+      properties:
+        type:
+          $ref: '#/components/schemas/BranchAccessType'
+        branches:
+          items:
+            format: uuid
+            type: string
+          type: array
+          nullable: true
+          title: Branches
+      required:
+      - type
+      type: object
+    BranchAccessInput:
+      properties:
+        type:
+          allOf:
+          - $ref: '#/components/schemas/BranchAccessType'
+          nullable: true
+        branches:
+          items:
+            format: uuid
+            type: string
+          title: Branches
+          type: array
+      type: object
+    BranchAccessType:
+      enum:
+      - full
+      - restricted
+      type: string
+    BranchCreateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        address:
+          default: ''
+          title: Address
           type: string
         manager_contact:
           type: string
           nullable: true
-        company_id:
-          type: string
-        equipment_count:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-
-    Equipment:
+          title: Manager Contact
+      required:
+      - name
       type: object
+    BranchUpdateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          nullable: true
+          title: Name
+        address:
+          type: string
+          nullable: true
+          title: Address
+        manager_contact:
+          type: string
+          nullable: true
+          title: Manager Contact
+      type: object
+    BranchesListResponse:
+      properties:
+        branches:
+          items:
+            $ref: '#/components/schemas/Branch'
+          title: Branches
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - branches
+      - pagination
+      type: object
+    ChangePasswordRequest:
+      properties:
+        current_password:
+          minLength: 1
+          title: Current Password
+          type: string
+        new_password:
+          minLength: 8
+          title: New Password
+          type: string
+      required:
+      - current_password
+      - new_password
+      type: object
+    CompaniesListResponse:
+      properties:
+        companies:
+          items:
+            $ref: '#/components/schemas/Company'
+          title: Companies
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - companies
+      - pagination
+      type: object
+    Company:
       properties:
         id:
+          format: uuid
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+        contact_email:
+          type: string
+          nullable: true
+          title: Contact Email
+        contact_phone:
+          type: string
+          nullable: true
+          title: Contact Phone
+        status:
+          $ref: '#/components/schemas/CompanyStatus'
+        branches_count:
+          type: integer
+          nullable: true
+          title: Branches Count
+        equipment_count:
+          type: integer
+          nullable: true
+          title: Equipment Count
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+        updated_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Updated At
+      required:
+      - id
+      - name
+      - status
+      type: object
+    CompanyCreateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        contact_email:
+          type: string
+          nullable: true
+          title: Contact Email
+        contact_phone:
+          type: string
+          nullable: true
+          title: Contact Phone
+      required:
+      - name
+      type: object
+    CompanyStatus:
+      enum:
+      - active
+      - inactive
+      type: string
+    CompanyUpdateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          nullable: true
+          title: Name
+        contact_email:
+          type: string
+          nullable: true
+          title: Contact Email
+        contact_phone:
+          type: string
+          nullable: true
+          title: Contact Phone
+        status:
+          allOf:
+          - $ref: '#/components/schemas/CompanyStatus'
+          nullable: true
+      type: object
+    ComparisonOperator:
+      enum:
+      - '>'
+      - <
+      - '='
+      - '>='
+      - <=
+      type: string
+    DeactivateCompanyResponse:
+      properties:
+        message:
+          title: Message
+          type: string
+        status:
+          $ref: '#/components/schemas/CompanyStatus'
+      required:
+      - message
+      - status
+      type: object
+    DoorState:
+      enum:
+      - open
+      - closed
+      type: string
+    Equipment:
+      properties:
+        id:
+          format: uuid
+          title: Id
           type: string
         serial:
+          title: Serial
           type: string
         type:
-          type: string
-          enum: [freezer, refrigerator, cold_room]
-        company_id:
-          type: string
+          $ref: '#/components/schemas/EquipmentType'
         branch_id:
+          format: uuid
+          title: Branch Id
           type: string
         branch_name:
           type: string
-        status:
+          nullable: true
+          title: Branch Name
+        company_id:
+          format: uuid
+          title: Company Id
           type: string
-          enum: [operational, warning, critical, offline]
-        is_active:
-          type: boolean
-        current_data:
-          $ref: '#/components/schemas/CurrentData'
         manufacturer:
           type: string
           nullable: true
+          title: Manufacturer
         model:
           type: string
           nullable: true
+          title: Model
+        status:
+          $ref: '#/components/schemas/EquipmentStatus'
+        is_active:
+          title: Is Active
+          type: boolean
+        current_data:
+          allOf:
+          - $ref: '#/components/schemas/EquipmentCurrentData'
+          nullable: true
+        last_seen_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Last Seen At
+        installed_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Installed At
+        last_maintenance_date:
+          format: date
+          type: string
+          nullable: true
+          title: Last Maintenance Date
+        next_maintenance_date:
+          format: date
+          type: string
+          nullable: true
+          title: Next Maintenance Date
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+      required:
+      - id
+      - serial
+      - type
+      - branch_id
+      - company_id
+      - status
+      - is_active
+      type: object
+    EquipmentAlertRulesResponse:
+      properties:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        applicable_rules:
+          items:
+            $ref: '#/components/schemas/AlertRule'
+          title: Applicable Rules
+          type: array
+      required:
+      - equipment_id
+      - applicable_rules
+      type: object
+    EquipmentCreateRequest:
+      properties:
+        serial:
+          maxLength: 100
+          minLength: 1
+          title: Serial
+          type: string
+        type:
+          $ref: '#/components/schemas/EquipmentType'
+        branch_id:
+          format: uuid
+          title: Branch Id
+          type: string
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        manufacturer:
+          type: string
+          nullable: true
+          title: Manufacturer
+        model:
+          type: string
+          nullable: true
+          title: Model
         installed_at:
           type: string
-          format: date-time
           nullable: true
-        last_maintenance_date:
-          type: string
-          format: date
-          nullable: true
-        next_maintenance_date:
-          type: string
-          format: date
-          nullable: true
-
+          title: Installed At
+      required:
+      - serial
+      - type
+      - branch_id
+      type: object
     EquipmentCreated:
-      allOf:
-        - $ref: '#/components/schemas/Equipment'
-        - type: object
-          required: [api_key]
-          properties:
-            api_key:
-              type: string
-              description: Plaintext API key returned only once upon creation
-
-    CurrentData:
-      type: object
-      nullable: true
-      properties:
-        temperature:
-          type: number
-          format: float
-        pressure:
-          type: number
-          format: float
-          nullable: true
-        door:
-          type: string
-          enum: [open, closed]
-          nullable: true
-        heater:
-          type: string
-          enum: [on, off]
-          nullable: true
-        compressor:
-          type: string
-          enum: [on, off]
-          nullable: true
-        fan:
-          type: string
-          enum: [on, off]
-          nullable: true
-        last_update:
-          type: string
-          format: date-time
-
-    TelemetryData:
-      type: object
-      required: [serial, temperature, pressure, door, heater, compressor, fan]
-      properties:
-        serial:
-          type: string
-          example: EQ-12345
-        temperature:
-          type: number
-          format: float
-          description: Temperature in Celsius (°C)
-          example: 4.5
-        pressure:
-          type: number
-          format: float
-          description: Gauge pressure in kilopascals (kPa)
-          example: 120.3
-        door:
-          type: integer
-          enum: [0, 1]
-          description: 0=closed, 1=open
-        heater:
-          type: integer
-          enum: [0, 1]
-          description: 0=off, 1=on
-        compressor:
-          type: integer
-          enum: [0, 1]
-          description: 0=off, 1=on
-        fan:
-          type: integer
-          enum: [0, 1]
-          description: 0=off, 1=on
-        request_id:
-          type: string
-          minLength: 1
-          maxLength: 128
-          nullable: true
-          description: Optional client-generated idempotency key (AIP-155) to deduplicate retried hardware submissions per equipment unit
-
-    TelemetryDataPoint:
-      type: object
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-        temperature:
-          type: number
-          format: float
-        pressure:
-          type: number
-          format: float
-          nullable: true
-        door:
-          type: integer
-          nullable: true
-        heater:
-          type: integer
-          nullable: true
-        compressor:
-          type: integer
-          nullable: true
-        fan:
-          type: integer
-          nullable: true
-        source:
-          type: string
-          enum: [device, manual]
-        recorded_by:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-
-    RealtimeTelemetry:
-      type: object
-      properties:
-        equipment_id:
-          type: string
-        serial:
-          type: string
-        branch_id:
-          type: string
-        temperature:
-          type: number
-          nullable: true
-        pressure:
-          type: number
-          nullable: true
-        door:
-          type: string
-          enum: [open, closed]
-          nullable: true
-        heater:
-          type: string
-          enum: [on, off]
-          nullable: true
-        compressor:
-          type: string
-          enum: [on, off]
-          nullable: true
-        fan:
-          type: string
-          enum: [on, off]
-          nullable: true
-        status:
-          type: string
-          enum: [operational, warning, critical, offline]
-        last_update:
-          type: string
-          format: date-time
-          nullable: true
-
-    Alert:
-      type: object
       properties:
         id:
-          type: string
-        equipment_id:
+          format: uuid
+          title: Id
           type: string
         serial:
-          type: string
-        branch_id:
+          title: Serial
           type: string
         type:
+          $ref: '#/components/schemas/EquipmentType'
+        branch_id:
+          format: uuid
+          title: Branch Id
           type: string
-          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
-        severity:
+        branch_name:
           type: string
-          enum: [warning, critical]
+          nullable: true
+          title: Branch Name
+        company_id:
+          format: uuid
+          title: Company Id
+          type: string
+        manufacturer:
+          type: string
+          nullable: true
+          title: Manufacturer
+        model:
+          type: string
+          nullable: true
+          title: Model
+        status:
+          $ref: '#/components/schemas/EquipmentStatus'
+        is_active:
+          title: Is Active
+          type: boolean
+        current_data:
+          allOf:
+          - $ref: '#/components/schemas/EquipmentCurrentData'
+          nullable: true
+        last_seen_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Last Seen At
+        installed_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Installed At
+        last_maintenance_date:
+          format: date
+          type: string
+          nullable: true
+          title: Last Maintenance Date
+        next_maintenance_date:
+          format: date
+          type: string
+          nullable: true
+          title: Next Maintenance Date
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+        api_key:
+          title: Api Key
+          type: string
+      required:
+      - id
+      - serial
+      - type
+      - branch_id
+      - company_id
+      - status
+      - is_active
+      - api_key
+      type: object
+    EquipmentCurrentData:
+      properties:
+        temperature:
+          type: number
+          nullable: true
+          title: Temperature
+        pressure:
+          type: number
+          nullable: true
+          title: Pressure
+        door:
+          allOf:
+          - $ref: '#/components/schemas/DoorState'
+          nullable: true
+        heater:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        compressor:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        fan:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        last_update:
+          format: date-time
+          type: string
+          nullable: true
+          title: Last Update
+      type: object
+    EquipmentStatus:
+      enum:
+      - operational
+      - warning
+      - critical
+      - offline
+      type: string
+    EquipmentType:
+      enum:
+      - freezer
+      - refrigerator
+      - cold_room
+      type: string
+    EquipmentUpdateRequest:
+      properties:
+        type:
+          allOf:
+          - $ref: '#/components/schemas/EquipmentType'
+          nullable: true
+        branch_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Branch Id
+        manufacturer:
+          type: string
+          nullable: true
+          title: Manufacturer
+        model:
+          type: string
+          nullable: true
+          title: Model
+        installed_at:
+          type: string
+          nullable: true
+          title: Installed At
+        is_active:
+          type: boolean
+          nullable: true
+          title: Is Active
+      type: object
+    EquipmentsListResponse:
+      properties:
+        equipment:
+          items:
+            $ref: '#/components/schemas/Equipment'
+          title: Equipment
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - equipment
+      - pagination
+      type: object
+    Error:
+      properties:
+        error:
+          title: Error
+          type: string
         message:
           type: string
-        status:
-          type: string
-          enum: [active, acknowledged, resolved]
-        created_at:
-          type: string
-          format: date-time
-        acknowledged_at:
-          type: string
-          format: date-time
           nullable: true
-        acknowledged_by:
-          type: string
-          nullable: true
-        resolved_at:
-          type: string
-          format: date-time
-          nullable: true
-
-    AlertRule:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-          nullable: true
-        rule_type:
-          type: string
-          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
-        threshold_value:
-          type: number
-          nullable: true
-        comparison_operator:
-          type: string
-          enum: ['>', '<', '=', '>=', '<=']
-          nullable: true
-        duration_seconds:
+          title: Message
+        equipment_count:
           type: integer
-        severity:
-          type: string
-          enum: [warning, critical]
-        message_template:
-          type: string
           nullable: true
-        scope:
-          type: string
-          enum: [global, company, equipment]
-        scope_id:
-          type: string
-          nullable: true
-        is_active:
-          type: boolean
-        created_by:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    AlertRuleCreate:
+          title: Equipment Count
+      required:
+      - error
       type: object
-      required: [name, rule_type, duration_seconds, severity, scope]
+    ForgotPasswordRequest:
       properties:
-        name:
+        email:
+          minLength: 1
+          title: Email
           type: string
-        description:
+      required:
+      - email
+      type: object
+    HardwareTelemetryRequest:
+      properties:
+        serial:
+          maxLength: 100
+          minLength: 1
+          title: Serial
           type: string
-        rule_type:
-          type: string
-          enum: [temperature_high, temperature_low, pressure_high, pressure_low, door_open, equipment_offline]
-        threshold_value:
+        temperature:
+          title: Temperature
           type: number
-          nullable: true
-          description: Required for numeric rules; null for `door_open` and `equipment_offline`
-        comparison_operator:
-          type: string
-          enum: ['>', '<', '=', '>=', '<=']
-          nullable: true
-          description: Required for numeric rules; null for `door_open` and `equipment_offline`
-        duration_seconds:
+        pressure:
+          title: Pressure
+          type: number
+        door:
+          enum:
+          - 0
+          - 1
+          title: Door
           type: integer
-          default: 300
-        severity:
-          type: string
-          enum: [warning, critical]
-        message_template:
-          type: string
-        scope:
-          type: string
-          enum: [global, company, equipment]
-        scope_id:
+        heater:
+          enum:
+          - 0
+          - 1
+          title: Heater
+          type: integer
+        compressor:
+          enum:
+          - 0
+          - 1
+          title: Compressor
+          type: integer
+        fan:
+          enum:
+          - 0
+          - 1
+          title: Fan
+          type: integer
+        request_id:
           type: string
           nullable: true
-        is_active:
-          type: boolean
-          default: true
-
-    AlertRuleWithPriority:
-      allOf:
-        - $ref: '#/components/schemas/AlertRule'
-        - type: object
-          properties:
-            priority:
-              type: integer
-              description: Rule priority (1=equipment, 2=company, 3=global)
-            is_effective:
-              type: boolean
-              description: True if not shadowed by a higher-priority rule for the same `(rule_type, severity)`
-
-    MaintenanceRecord:
+          title: Request Id
+      required:
+      - serial
+      - temperature
+      - pressure
+      - door
+      - heater
+      - compressor
+      - fan
       type: object
+    HardwareTelemetryResponse:
       properties:
-        id:
+        success:
+          title: Success
+          type: boolean
+        message:
+          title: Message
           type: string
-        equipment_id:
+        timestamp:
+          format: date-time
+          title: Timestamp
           type: string
+        record_id:
+          format: uuid
+          title: Record Id
+          type: string
+        deduplicated:
+          type: boolean
+          nullable: true
+          title: Deduplicated
+      required:
+      - success
+      - message
+      - timestamp
+      - record_id
+      type: object
+    LoginRequest:
+      properties:
+        email:
+          minLength: 1
+          title: Email
+          type: string
+        password:
+          minLength: 1
+          title: Password
+          type: string
+      required:
+      - email
+      - password
+      type: object
+    LoginResponse:
+      properties:
+        access_token:
+          title: Access Token
+          type: string
+        refresh_token:
+          title: Refresh Token
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+      - access_token
+      - refresh_token
+      - user
+      type: object
+    MaintenanceCreateRequest:
+      properties:
         type:
-          type: string
-          enum: [routine_inspection, repair, part_replacement, emergency_fix]
+          $ref: '#/components/schemas/MaintenanceType'
         description:
+          minLength: 1
+          title: Description
           type: string
         performed_by:
+          maxLength: 255
+          minLength: 1
+          title: Performed By
           type: string
         performed_at:
           type: string
-          format: date-time
+          nullable: true
+          title: Performed At
         notes:
           type: string
           nullable: true
+          title: Notes
         next_maintenance_date:
           type: string
-          format: date
           nullable: true
-
-    AuditLog:
+          title: Next Maintenance Date
+      required:
+      - type
+      - description
+      - performed_by
       type: object
+    MaintenanceRecord:
       properties:
         id:
+          format: uuid
+          title: Id
           type: string
-        user_id:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
           type: string
-          nullable: true
-        action:
+        type:
+          $ref: '#/components/schemas/MaintenanceType'
+        description:
+          title: Description
           type: string
-        entity_type:
+        performed_by:
+          title: Performed By
           type: string
-        entity_id:
-          type: string
-          nullable: true
-        changes:
-          type: object
-          nullable: true
-        ip_address:
-          type: string
-          nullable: true
-        user_agent:
-          type: string
-          nullable: true
-        created_at:
-          type: string
+        performed_at:
           format: date-time
-
-    Pagination:
+          type: string
+          nullable: true
+          title: Performed At
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+        next_maintenance_date:
+          format: date
+          type: string
+          nullable: true
+          title: Next Maintenance Date
+        created_by:
+          format: uuid
+          type: string
+          nullable: true
+          title: Created By
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+      required:
+      - id
+      - equipment_id
+      - type
+      - description
+      - performed_by
       type: object
+    MaintenanceRecordsListResponse:
       properties:
-        page:
-          type: integer
-        limit:
-          type: integer
-        total:
-          type: integer
-        total_pages:
-          type: integer
-
-    SuccessResponse:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        maintenance_records:
+          items:
+            $ref: '#/components/schemas/MaintenanceRecord'
+          title: Maintenance Records
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - equipment_id
+      - maintenance_records
+      - pagination
       type: object
+    MaintenanceType:
+      enum:
+      - preventive
+      - routine_inspection
+      - repair
+      - part_replacement
+      - calibration
+      - cleaning
+      - emergency
+      - emergency_fix
+      - other
+      type: string
+    MaintenanceUpdateRequest:
+      properties:
+        type:
+          allOf:
+          - $ref: '#/components/schemas/MaintenanceType'
+          nullable: true
+        description:
+          minLength: 1
+          type: string
+          nullable: true
+          title: Description
+        performed_by:
+          maxLength: 255
+          minLength: 1
+          type: string
+          nullable: true
+          title: Performed By
+        performed_at:
+          type: string
+          nullable: true
+          title: Performed At
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+        next_maintenance_date:
+          type: string
+          nullable: true
+          title: Next Maintenance Date
+      type: object
+    ManualTelemetryRequest:
+      properties:
+        temperature:
+          title: Temperature
+          type: number
+        recorded_at:
+          type: string
+          nullable: true
+          title: Recorded At
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+      required:
+      - temperature
+      type: object
+    ManualTelemetryResponse:
+      properties:
+        success:
+          title: Success
+          type: boolean
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+        temperature:
+          title: Temperature
+          type: number
+        source:
+          $ref: '#/components/schemas/TelemetrySource'
+        recorded_by:
+          format: uuid
+          title: Recorded By
+          type: string
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+      required:
+      - success
+      - equipment_id
+      - timestamp
+      - temperature
+      - source
+      - recorded_by
+      type: object
+    MessageResponse:
       properties:
         success:
           type: boolean
+          nullable: true
+          title: Success
         message:
+          title: Message
           type: string
-
-    ErrorResponse:
+      required:
+      - message
       type: object
+    OverviewSparklinePoint:
       properties:
-        error:
+        t:
+          format: date-time
+          title: T
           type: string
+        v:
+          title: V
+          type: number
+      required:
+      - t
+      - v
+      type: object
+    Pagination:
+      properties:
+        page:
+          title: Page
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        total:
+          title: Total
+          type: integer
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - page
+      - limit
+      - total
+      - total_pages
+      type: object
+    ProfileUpdateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+      required:
+      - name
+      type: object
+    RealtimeTelemetry:
+      properties:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        serial:
+          title: Serial
+          type: string
+        branch_id:
+          format: uuid
+          title: Branch Id
+          type: string
+        company_id:
+          format: uuid
+          title: Company Id
+          type: string
+        status:
+          $ref: '#/components/schemas/EquipmentStatus'
+        temperature:
+          type: number
+          nullable: true
+          title: Temperature
+        pressure:
+          type: number
+          nullable: true
+          title: Pressure
+        door:
+          allOf:
+          - $ref: '#/components/schemas/DoorState'
+          nullable: true
+        heater:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        compressor:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        fan:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        last_update:
+          format: date-time
+          type: string
+          nullable: true
+          title: Last Update
+      required:
+      - equipment_id
+      - serial
+      - branch_id
+      - company_id
+      - status
+      type: object
+    RealtimeTelemetryListResponse:
+      properties:
+        equipment:
+          items:
+            $ref: '#/components/schemas/RealtimeTelemetry'
+          title: Equipment
+          type: array
+      required:
+      - equipment
+      type: object
+    RefreshResponse:
+      properties:
+        access_token:
+          title: Access Token
+          type: string
+      required:
+      - access_token
+      type: object
+    ResendInvitationResponse:
+      properties:
+        success:
+          title: Success
+          type: boolean
+        user_id:
+          format: uuid
+          title: User Id
+          type: string
+        invitation_sent:
+          title: Invitation Sent
+          type: boolean
         message:
+          title: Message
           type: string
-        details:
+      required:
+      - success
+      - user_id
+      - invitation_sent
+      - message
+      type: object
+    ResetPasswordRequest:
+      properties:
+        token:
+          minLength: 1
+          title: Token
+          type: string
+        new_password:
+          minLength: 8
+          title: New Password
+          type: string
+      required:
+      - token
+      - new_password
+      type: object
+    RotateApiKeyResponse:
+      properties:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        api_key:
+          title: Api Key
+          type: string
+      required:
+      - equipment_id
+      - api_key
+      type: object
+    TelemetryDataPoint:
+      properties:
+        id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Id
+        timestamp:
+          format: date-time
+          type: string
+          nullable: true
+          title: Timestamp
+        time:
+          format: date-time
+          type: string
+          nullable: true
+          title: Time
+        equipment_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Equipment Id
+        temperature:
+          type: number
+          nullable: true
+          title: Temperature
+        min_temperature:
+          type: number
+          nullable: true
+          title: Min Temperature
+        max_temperature:
+          type: number
+          nullable: true
+          title: Max Temperature
+        pressure:
+          type: number
+          nullable: true
+          title: Pressure
+        door:
+          allOf:
+          - $ref: '#/components/schemas/DoorState'
+          nullable: true
+        heater:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        compressor:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        fan:
+          allOf:
+          - $ref: '#/components/schemas/BinaryDeviceState'
+          nullable: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/TelemetrySource'
+          nullable: true
+        recorded_by:
+          format: uuid
+          type: string
+          nullable: true
+          title: Recorded By
+        notes:
+          type: string
+          nullable: true
+          title: Notes
+        sample_count:
+          type: integer
+          nullable: true
+          title: Sample Count
+      type: object
+    TelemetryHistoryResponse:
+      properties:
+        equipment_id:
+          format: uuid
+          title: Equipment Id
+          type: string
+        serial:
+          type: string
+          nullable: true
+          title: Serial
+        interval:
+          $ref: '#/components/schemas/TelemetryInterval'
+        count:
+          title: Count
+          type: integer
+        data:
+          items:
+            $ref: '#/components/schemas/TelemetryDataPoint'
+          title: Data
+          type: array
+        next_page_token:
+          type: string
+          nullable: true
+          title: Next Page Token
+        pagination:
+          allOf:
+          - $ref: '#/components/schemas/Pagination'
+          nullable: true
+      required:
+      - equipment_id
+      - interval
+      - count
+      - data
+      type: object
+    TelemetryInterval:
+      enum:
+      - raw
+      - 5min
+      - 1hour
+      - 1day
+      type: string
+    TelemetryOverviewEntry:
+      properties:
+        sparkline_24h:
+          items:
+            $ref: '#/components/schemas/OverviewSparklinePoint'
+          title: Sparkline 24H
+          type: array
+        threshold:
+          allOf:
+          - $ref: '#/components/schemas/ThresholdBounds'
+          nullable: true
+      required:
+      - sparkline_24h
+      type: object
+    TelemetryOverviewResponse:
+      properties:
+        overview:
+          additionalProperties:
+            $ref: '#/components/schemas/TelemetryOverviewEntry'
+          title: Overview
           type: object
-
-  responses:
-    BadRequest:
-      description: Bad Request - Invalid input
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Unauthorized:
-      description: Unauthorized - Authentication required or failed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Forbidden:
-      description: Forbidden - Insufficient permissions or inactive account/tenant
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: Not Found - Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Conflict:
-      description: Conflict - Resource state or uniqueness conflict
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    TooManyRequests:
-      description: Too Many Requests - Rate limit exceeded
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
+      required:
+      - overview
+      type: object
+    TelemetrySource:
+      enum:
+      - device
+      - manual
+      type: string
+    ThresholdBounds:
+      properties:
+        low:
+          type: number
+          nullable: true
+          title: Low
+        high:
+          type: number
+          nullable: true
+          title: High
+        label:
+          type: string
+          nullable: true
+          title: Label
+      type: object
+    User:
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        email:
+          title: Email
+          type: string
+        name:
+          title: Name
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        branch_access_type:
+          $ref: '#/components/schemas/BranchAccessType'
+        branch_access:
+          allOf:
+          - $ref: '#/components/schemas/BranchAccess'
+          nullable: true
+        last_login_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Last Login At
+        created_at:
+          format: date-time
+          type: string
+          nullable: true
+          title: Created At
+      required:
+      - id
+      - email
+      - name
+      - role
+      - status
+      - branch_access_type
+      type: object
+    UserCreateRequest:
+      properties:
+        email:
+          minLength: 1
+          pattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+          title: Email
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        password:
+          minLength: 8
+          title: Password
+          type: string
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        branch_access_type:
+          $ref: '#/components/schemas/BranchAccessType'
+          default: full
+        branch_ids:
+          items:
+            format: uuid
+            type: string
+          title: Branch Ids
+          type: array
+      required:
+      - email
+      - name
+      - role
+      - password
+      type: object
+    UserInviteRequest:
+      properties:
+        email:
+          minLength: 1
+          pattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+          title: Email
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          title: Name
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        branch_access:
+          allOf:
+          - $ref: '#/components/schemas/BranchAccessInput'
+          nullable: true
+      required:
+      - email
+      - name
+      - role
+      type: object
+    UserInviteResponse:
+      properties:
+        success:
+          title: Success
+          type: boolean
+        user_id:
+          format: uuid
+          title: User Id
+          type: string
+        invitation_sent:
+          title: Invitation Sent
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+        message:
+          title: Message
+          type: string
+      required:
+      - success
+      - user_id
+      - invitation_sent
+      - user
+      - message
+      type: object
+    UserRole:
+      enum:
+      - global_admin
+      - company_admin
+      - company_viewer
+      type: string
+    UserStatus:
+      enum:
+      - active
+      - inactive
+      - pending
+      type: string
+    UserUpdateRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          nullable: true
+          title: Name
+        email:
+          minLength: 1
+          type: string
+          nullable: true
+          title: Email
+        role:
+          allOf:
+          - $ref: '#/components/schemas/UserRole'
+          nullable: true
+        company_id:
+          format: uuid
+          type: string
+          nullable: true
+          title: Company Id
+        status:
+          allOf:
+          - $ref: '#/components/schemas/UserStatus'
+          nullable: true
+        branch_access:
+          allOf:
+          - $ref: '#/components/schemas/BranchAccessInput'
+          nullable: true
+      type: object
+    UsersListResponse:
+      properties:
+        users:
+          items:
+            $ref: '#/components/schemas/User'
+          title: Users
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+      - users
+      - pagination
+      type: object

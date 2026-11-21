@@ -14,12 +14,13 @@ import math
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Literal, overload
+from typing import overload
 
 from flask import has_request_context, request
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app import db
+from app.enums import AuditEntityType as AuditEntityType
 from app.models import (
     Alert,
     AlertRuleType,
@@ -266,17 +267,6 @@ def format_csv_row(values: Sequence[object]) -> str:
     writer = csv.writer(buf)
     writer.writerow([_sanitize_csv_cell(v) for v in values])
     return buf.getvalue()
-
-
-AuditEntityType = Literal[
-    "company",
-    "branch",
-    "user",
-    "equipment",
-    "alert",
-    "alert_rule",
-    "maintenance_record",
-]
 
 
 def record_audit_log(

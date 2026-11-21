@@ -15,7 +15,7 @@ from flask_limiter import Limiter
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError, StatementError
 from sqlalchemy.orm import DeclarativeBase, joinedload
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -232,7 +232,10 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify({"error": "Bad Request", "message": "Invalid request payload or parameters"}), 400
 
     @app.errorhandler(DataError)
-    def handle_data_error(error: DataError) -> tuple[Response, int]:
+    @app.errorhandler(StatementError)
+    def handle_data_error(error: DataError | StatementError) -> tuple[Response, int]:
+        if not isinstance(error, DataError) and not isinstance(error.orig, ValueError | TypeError):
+            raise error
         db.session.rollback()
         app.logger.warning(f"Invalid database parameter syntax: {error}")
         return jsonify(

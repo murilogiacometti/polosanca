@@ -1,34 +1,13 @@
 import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import type { paths } from './types/openapi';
 import type {
-  AlertItem,
-  AlertRule,
-  AlertRuleStatistics,
-  AlertScope,
-  AlertSeverity,
-  AlertStatistics,
-  AlertStatus,
-  AlertType,
-  AuditLogItem,
-  Branch,
-  Company,
-  CompanyStatus,
   CreateAlertRulePayload,
   CreateBranchPayload,
   CreateCompanyPayload,
   CreateEquipmentPayload,
   CreateMaintenancePayload,
-  Equipment,
-  EquipmentOverviewItem,
-  EquipmentStatus,
-  EquipmentType,
   InviteUserPayload,
-  MaintenanceRecord,
   ManualTelemetryPayload,
-  PaginationMeta,
-  RealtimeSnapshot,
-  RotateApiKeyResponse,
-  TelemetryInterval,
-  TelemetryRow,
   UpdateAlertRulePayload,
   UpdateBranchPayload,
   UpdateCompanyPayload,
@@ -36,8 +15,6 @@ import type {
   UpdateMaintenancePayload,
   UpdateUserPayload,
   User,
-  UserRole,
-  UserStatus,
 } from './types/models';
 
 declare module 'axios' {
@@ -176,18 +153,128 @@ api.interceptors.response.use(
 );
 
 // ---------------------------------------------------------------------------
+// Cliente HTTP tipado por caminho OpenAPI (`paths` em openapi.d.ts)
+// Garante em tempo de compilação que URL, método, path params, query params,
+// corpo da requisição e tipo da resposta correspondem ao contrato gerado.
+// ---------------------------------------------------------------------------
+
+type HttpMethod = 'get' | 'post' | 'patch' | 'delete';
+
+type PathsWithMethod<M extends HttpMethod> = {
+  [P in keyof paths]: paths[P] extends Record<M, object> ? P : never;
+}[keyof paths];
+
+type OperationOf<M extends HttpMethod, P extends PathsWithMethod<M>> = paths[P][M];
+
+type PathParamsOf<Op> = Op extends { parameters: { path: infer PP } } ? PP : undefined;
+type QueryParamsOf<Op> = Op extends { parameters: { query?: infer QP } } ? QP : undefined;
+type RequestBodyOf<Op> = Op extends {
+  requestBody: { content: { 'application/json': infer B } };
+}
+  ? B
+  : undefined;
+
+type SuccessJsonOf<Op> = Op extends { responses: infer R }
+  ? R extends { 200: { content: { 'application/json': infer D } } }
+    ? D
+    : R extends { 201: { content: { 'application/json': infer D } } }
+      ? D
+      : void
+  : void;
+
+type PathOption<Op> =
+  PathParamsOf<Op> extends undefined ? { path?: never } : { path: PathParamsOf<Op> };
+type QueryOption<Op> =
+  QueryParamsOf<Op> extends undefined ? { query?: never } : { query?: QueryParamsOf<Op> };
+type BodyOption<Op> =
+  RequestBodyOf<Op> extends undefined ? { body?: never } : { body: RequestBodyOf<Op> };
+
+type RequestOptions<Op> = PathOption<Op> &
+  QueryOption<Op> &
+  BodyOption<Op> & {
+    skipAuthInterceptor?: boolean;
+  };
+
+function interpolatePath(template: string, params?: object): string {
+  if (!params) return template;
+  const entries = new Map<string, string>();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' || typeof value === 'number') {
+      entries.set(key, String(value));
+    }
+  }
+  return template.replace(/\{([^}]+)\}/g, (_, key: string) =>
+    encodeURIComponent(entries.get(key) ?? '')
+  );
+}
+
+async function requestJson<M extends HttpMethod, P extends PathsWithMethod<M>>(
+  method: M,
+  pathTemplate: P,
+  options?: RequestOptions<OperationOf<M, P>>
+): Promise<SuccessJsonOf<OperationOf<M, P>>> {
+  const pathParams = options?.path;
+  const url = interpolatePath(
+    pathTemplate,
+    pathParams && typeof pathParams === 'object' ? pathParams : undefined
+  );
+  const response = await api.request<SuccessJsonOf<OperationOf<M, P>>>({
+    method,
+    url,
+    params: options?.query,
+    data: options?.body,
+    skipAuthInterceptor: options?.skipAuthInterceptor,
+  });
+  return response.data;
+}
+
+async function requestBlob<P extends PathsWithMethod<'get'>>(
+  pathTemplate: P,
+  options?: RequestOptions<OperationOf<'get', P>>
+): Promise<AxiosResponse<Blob>> {
+  const pathParams = options?.path;
+  const url = interpolatePath(
+    pathTemplate,
+    pathParams && typeof pathParams === 'object' ? pathParams : undefined
+  );
+  return api.get<Blob>(url, {
+    params: options?.query,
+    responseType: 'blob',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Contratos de Query Parameters (derivados diretamente de openapi.d.ts)
+// ---------------------------------------------------------------------------
+
+type OpenApiQuery<P extends keyof paths> = paths[P] extends {
+  get: { parameters: { query?: infer Q } };
+}
+  ? NonNullable<Q>
+  : never;
+
+type GetCompaniesParams = OpenApiQuery<'/companies'>;
+export type GetBranchesParams = OpenApiQuery<'/branches'>;
+export type GetUsersParams = OpenApiQuery<'/users'>;
+type GetEquipmentsParams = OpenApiQuery<'/equipments'>;
+type GetMaintenanceRecordsParams = OpenApiQuery<'/equipments/{equipment_id}/maintenance-records'>;
+type GetRealtimeTelemetryParams = OpenApiQuery<'/telemetry/realtime'>;
+type GetTelemetryOverviewParams = OpenApiQuery<'/telemetry/overview'>;
+type GetTelemetryParams = OpenApiQuery<'/equipments/{equipment_id}/telemetry'>;
+type ExportTelemetryParams = OpenApiQuery<'/equipments/{equipment_id}/telemetry/export'>;
+export type GetAlertsParams = OpenApiQuery<'/alerts'>;
+export type GetAlertStatisticsParams = OpenApiQuery<'/alerts/statistics'>;
+export type GetAlertRulesParams = OpenApiQuery<'/alert-rules'>;
+export type GetAuditLogsParams = OpenApiQuery<'/audit-logs'>;
+
+// ---------------------------------------------------------------------------
 // Autenticação, Perfil e Recuperação de Conta
 // ---------------------------------------------------------------------------
 
-interface LoginApiResponse {
-  access_token: string;
-  refresh_token: string;
-  user: User;
-}
-
 export const login = async (email: string, password: string): Promise<User> => {
-  const response = await api.post<LoginApiResponse>('/auth/login', { email, password });
-  const { access_token, refresh_token, user } = response.data;
+  const { access_token, refresh_token, user } = await requestJson('post', '/auth/login', {
+    body: { email, password },
+  });
   localStorage.setItem('accessToken', access_token);
   localStorage.setItem('refreshToken', refresh_token);
   localStorage.setItem('user', JSON.stringify(user));
@@ -199,7 +286,7 @@ export const logout = async (): Promise<void> => {
   const refreshToken = localStorage.getItem('refreshToken');
   try {
     if (accessToken) {
-      await api.post('/auth/logout');
+      await requestJson('post', '/auth/logout');
     }
     if (refreshToken) {
       await axios.post(
@@ -220,505 +307,239 @@ export const logout = async (): Promise<void> => {
 };
 
 export const getCurrentUser = async (): Promise<User> => {
-  const response = await api.get<User>('/auth/me');
-  localStorage.setItem('user', JSON.stringify(response.data));
-  return response.data;
+  const user = await requestJson('get', '/auth/me');
+  localStorage.setItem('user', JSON.stringify(user));
+  return user;
 };
 
 export const updateProfile = async (name: string): Promise<User> => {
-  const response = await api.patch<User>('/auth/me', { name });
-  localStorage.setItem('user', JSON.stringify(response.data));
-  return response.data;
+  const user = await requestJson('patch', '/auth/me', { body: { name } });
+  localStorage.setItem('user', JSON.stringify(user));
+  return user;
 };
 
-export const changePassword = async (
-  currentPassword: string,
-  newPassword: string
-): Promise<{ message?: string }> => {
-  const response = await api.post<{ message?: string }>('/auth/change-password', {
-    current_password: currentPassword,
-    new_password: newPassword,
+export const changePassword = async (currentPassword: string, newPassword: string) =>
+  requestJson('post', '/auth/change-password', {
+    body: { current_password: currentPassword, new_password: newPassword },
   });
-  return response.data;
-};
 
-export const forgotPassword = async (email: string): Promise<{ message?: string }> => {
-  const response = await api.post<{ message?: string }>(
-    '/auth/forgot-password',
-    { email },
-    { skipAuthInterceptor: true }
-  );
-  return response.data;
-};
+export const forgotPassword = async (email: string) =>
+  requestJson('post', '/auth/forgot-password', {
+    body: { email },
+    skipAuthInterceptor: true,
+  });
 
-export const resetPassword = async (
-  token: string,
-  newPassword: string
-): Promise<{ message?: string }> => {
-  const response = await api.post<{ message?: string }>(
-    '/auth/reset-password',
-    { token, new_password: newPassword },
-    { skipAuthInterceptor: true }
-  );
-  return response.data;
-};
+export const resetPassword = async (token: string, newPassword: string) =>
+  requestJson('post', '/auth/reset-password', {
+    body: { token, new_password: newPassword },
+    skipAuthInterceptor: true,
+  });
 
-export const acceptInvitation = async (
-  token: string,
-  password: string
-): Promise<{ message?: string; user?: User }> => {
-  const response = await api.post<{ message?: string; user?: User }>(
-    '/users/accept-invitation',
-    { token, password },
-    { skipAuthInterceptor: true }
-  );
-  return response.data;
-};
-
-// ---------------------------------------------------------------------------
-// Contratos de Query Parameters (tipagem estrita alinhada às rotas Flask)
-// ---------------------------------------------------------------------------
-
-interface GetCompaniesParams {
-  page?: number;
-  limit?: number;
-  status?: CompanyStatus;
-}
-
-export interface GetBranchesParams {
-  page?: number;
-  limit?: number;
-  company_id?: string;
-}
-
-export interface GetUsersParams {
-  page?: number;
-  limit?: number;
-  company_id?: string;
-  role?: UserRole;
-  status?: UserStatus;
-}
-
-interface GetEquipmentsParams {
-  page?: number;
-  limit?: number;
-  company_id?: string;
-  branch_id?: string;
-  type?: EquipmentType;
-  status?: EquipmentStatus;
-  search?: string;
-  include_inactive?: boolean;
-}
-
-interface GetMaintenanceRecordsParams {
-  page?: number;
-  limit?: number;
-}
-
-interface GetRealtimeTelemetryParams {
-  company_id?: string;
-  branch_id?: string;
-  equipment_ids?: string;
-}
-
-interface GetTelemetryOverviewParams {
-  company_id?: string;
-  branch_id?: string;
-  equipment_ids?: string;
-}
-
-interface GetTelemetryParams {
-  page?: number;
-  limit?: number;
-  page_size?: number;
-  page_token?: string;
-  interval?: TelemetryInterval;
-  start_date?: string;
-  end_date?: string;
-  fields?: string;
-}
-
-interface ExportTelemetryParams {
-  interval?: TelemetryInterval;
-  start_date?: string;
-  end_date?: string;
-}
-
-export interface GetAlertsParams {
-  page?: number;
-  limit?: number;
-  company_id?: string;
-  branch_id?: string;
-  equipment_id?: string;
-  status?: AlertStatus | 'active,acknowledged';
-  severity?: AlertSeverity;
-  start_date?: string;
-  end_date?: string;
-}
-
-export interface GetAlertStatisticsParams {
-  company_id?: string;
-  branch_id?: string;
-  equipment_id?: string;
-}
-
-export interface GetAlertRulesParams {
-  page?: number;
-  limit?: number;
-  company_id?: string;
-  scope?: AlertScope;
-  equipment_id?: string;
-  rule_type?: AlertType;
-  is_active?: boolean | 'true' | 'false';
-}
-
-export interface GetAuditLogsParams {
-  page?: number;
-  limit?: number;
-  page_size?: number;
-  page_token?: string;
-  user_id?: string;
-  entity_type?: string;
-  entity_id?: string;
-  action?: string;
-  start_date?: string;
-  end_date?: string;
-}
+export const acceptInvitation = async (token: string, password: string) =>
+  requestJson('post', '/users/accept-invitation', {
+    body: { token, password },
+    skipAuthInterceptor: true,
+  });
 
 // ---------------------------------------------------------------------------
 // Empresas, Filiais e Usuários
 // ---------------------------------------------------------------------------
 
-export const getCompanies = async (
-  params: GetCompaniesParams = {}
-): Promise<{ companies: Company[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ companies: Company[]; pagination?: PaginationMeta }>(
-    '/companies',
-    { params }
-  );
-  return response.data;
-};
+export const getCompanies = async (params: GetCompaniesParams = {}) =>
+  requestJson('get', '/companies', { query: params });
 
-export const getCompany = async (companyId: string): Promise<Company> => {
-  const response = await api.get<Company>(`/companies/${companyId}`);
-  return response.data;
-};
+export const getCompany = async (companyId: string) =>
+  requestJson('get', '/companies/{company_id}', { path: { company_id: companyId } });
 
-export const createCompany = async (payload: CreateCompanyPayload): Promise<Company> => {
-  const response = await api.post<Company>('/companies', payload);
-  return response.data;
-};
+export const createCompany = async (payload: CreateCompanyPayload) =>
+  requestJson('post', '/companies', { body: payload });
 
-export const updateCompany = async (
-  companyId: string,
-  payload: UpdateCompanyPayload
-): Promise<Company> => {
-  const response = await api.patch<Company>(`/companies/${companyId}`, payload);
-  return response.data;
-};
-
-export const deactivateCompany = async (companyId: string): Promise<{ message?: string }> => {
-  const response = await api.delete<{ message?: string }>(`/companies/${companyId}`);
-  return response.data;
-};
-
-export const getBranches = async (
-  params: GetBranchesParams = {}
-): Promise<{ branches: Branch[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ branches: Branch[]; pagination?: PaginationMeta }>('/branches', {
-    params,
+export const updateCompany = async (companyId: string, payload: UpdateCompanyPayload) =>
+  requestJson('patch', '/companies/{company_id}', {
+    path: { company_id: companyId },
+    body: payload,
   });
-  return response.data;
-};
 
-export const createBranch = async (payload: CreateBranchPayload): Promise<Branch> => {
-  const response = await api.post<Branch>('/branches', payload);
-  return response.data;
-};
+export const deactivateCompany = async (companyId: string) =>
+  requestJson('delete', '/companies/{company_id}', { path: { company_id: companyId } });
 
-export const updateBranch = async (
-  branchId: string,
-  payload: UpdateBranchPayload
-): Promise<Branch> => {
-  const response = await api.patch<Branch>(`/branches/${branchId}`, payload);
-  return response.data;
-};
+export const getBranches = async (params: GetBranchesParams = {}) =>
+  requestJson('get', '/branches', { query: params });
 
-export const deleteBranch = async (branchId: string): Promise<{ message?: string }> => {
-  const response = await api.delete<{ message?: string }>(`/branches/${branchId}`);
-  return response.data;
-};
+export const createBranch = async (payload: CreateBranchPayload) =>
+  requestJson('post', '/branches', { body: payload });
 
-export const getUsers = async (
-  params: GetUsersParams = {}
-): Promise<{ users: User[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ users: User[]; pagination?: PaginationMeta }>('/users', {
-    params,
+export const updateBranch = async (branchId: string, payload: UpdateBranchPayload) =>
+  requestJson('patch', '/branches/{branch_id}', {
+    path: { branch_id: branchId },
+    body: payload,
   });
-  return response.data;
-};
 
-export const inviteUser = async (
-  userData: InviteUserPayload
-): Promise<{ user?: User; message?: string }> => {
-  const response = await api.post<{ user?: User; message?: string }>('/users/invite', userData);
-  return response.data;
-};
+export const deleteBranch = async (branchId: string) =>
+  requestJson('delete', '/branches/{branch_id}', { path: { branch_id: branchId } });
 
-export const resendInvitation = async (userId: string): Promise<{ message?: string }> => {
-  const response = await api.post<{ message?: string }>(`/users/${userId}/resend-invitation`);
-  return response.data;
-};
+export const getUsers = async (params: GetUsersParams = {}) =>
+  requestJson('get', '/users', { query: params });
 
-export const updateUser = async (userId: string, payload: UpdateUserPayload): Promise<User> => {
-  const response = await api.patch<User>(`/users/${userId}`, payload);
-  return response.data;
-};
+export const inviteUser = async (userData: InviteUserPayload) =>
+  requestJson('post', '/users/invite', { body: userData });
 
-export const deactivateUser = async (userId: string): Promise<void> => {
-  await api.delete(`/users/${userId}`);
-};
+export const resendInvitation = async (userId: string) =>
+  requestJson('post', '/users/{user_id}/resend-invitation', { path: { user_id: userId } });
+
+export const updateUser = async (userId: string, payload: UpdateUserPayload) =>
+  requestJson('patch', '/users/{user_id}', { path: { user_id: userId }, body: payload });
+
+export const deactivateUser = async (userId: string) =>
+  requestJson('delete', '/users/{user_id}', { path: { user_id: userId } });
 
 // ---------------------------------------------------------------------------
 // Equipamentos e Regras Aplicáveis
 // ---------------------------------------------------------------------------
 
-export const getEquipments = async (
-  params: GetEquipmentsParams = {}
-): Promise<{ equipment: Equipment[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ equipment: Equipment[]; pagination?: PaginationMeta }>(
-    '/equipments',
-    { params }
-  );
-  return response.data;
-};
+export const getEquipments = async (params: GetEquipmentsParams = {}) =>
+  requestJson('get', '/equipments', { query: params });
 
-export const getEquipment = async (equipmentId: string): Promise<Equipment> => {
-  const response = await api.get<Equipment>(`/equipments/${equipmentId}`);
-  return response.data;
-};
+export const getEquipment = async (equipmentId: string) =>
+  requestJson('get', '/equipments/{equipment_id}', { path: { equipment_id: equipmentId } });
 
-export const createEquipment = async (
-  payload: CreateEquipmentPayload
-): Promise<{ equipment?: Equipment; id?: string; serial?: string; api_key?: string } & Partial<Equipment>> => {
-  const response = await api.post<
-    { equipment?: Equipment; id?: string; serial?: string; api_key?: string } & Partial<Equipment>
-  >('/equipments', payload);
-  return response.data;
-};
+export const createEquipment = async (payload: CreateEquipmentPayload) =>
+  requestJson('post', '/equipments', { body: payload });
 
-export const updateEquipment = async (
-  equipmentId: string,
-  payload: UpdateEquipmentPayload
-): Promise<Equipment> => {
-  const response = await api.patch<Equipment>(`/equipments/${equipmentId}`, payload);
-  return response.data;
-};
+export const updateEquipment = async (equipmentId: string, payload: UpdateEquipmentPayload) =>
+  requestJson('patch', '/equipments/{equipment_id}', {
+    path: { equipment_id: equipmentId },
+    body: payload,
+  });
 
-export const deactivateEquipment = async (equipmentId: string): Promise<void> => {
-  await api.delete(`/equipments/${equipmentId}`);
-};
+export const deactivateEquipment = async (equipmentId: string) =>
+  requestJson('delete', '/equipments/{equipment_id}', { path: { equipment_id: equipmentId } });
 
-export const rotateEquipmentApiKey = async (
-  equipmentId: string
-): Promise<RotateApiKeyResponse> => {
-  const response = await api.post<RotateApiKeyResponse>(
-    `/equipments/${equipmentId}/rotate-api-key`
-  );
-  return response.data;
-};
+export const rotateEquipmentApiKey = async (equipmentId: string) =>
+  requestJson('post', '/equipments/{equipment_id}/rotate-api-key', {
+    path: { equipment_id: equipmentId },
+  });
 
-export const getEquipmentAlertRules = async (
-  equipmentId: string
-): Promise<{ applicable_rules: AlertRule[] }> => {
-  const response = await api.get<{ applicable_rules: AlertRule[] }>(
-    `/equipments/${equipmentId}/alert-rules`
-  );
-  return response.data;
-};
+export const getEquipmentAlertRules = async (equipmentId: string) =>
+  requestJson('get', '/equipments/{equipment_id}/alert-rules', {
+    path: { equipment_id: equipmentId },
+  });
 
 export const getEquipmentMaintenanceRecords = async (
   equipmentId: string,
   params: GetMaintenanceRecordsParams = {}
-): Promise<{ maintenance_records: MaintenanceRecord[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{
-    maintenance_records: MaintenanceRecord[];
-    pagination?: PaginationMeta;
-  }>(`/equipments/${equipmentId}/maintenance-records`, { params });
-  return response.data;
-};
+) =>
+  requestJson('get', '/equipments/{equipment_id}/maintenance-records', {
+    path: { equipment_id: equipmentId },
+    query: params,
+  });
 
 export const createMaintenanceRecord = async (
   equipmentId: string,
   payload: CreateMaintenancePayload
-): Promise<MaintenanceRecord> => {
-  const response = await api.post<MaintenanceRecord>(
-    `/equipments/${equipmentId}/maintenance-records`,
-    payload
-  );
-  return response.data;
-};
+) =>
+  requestJson('post', '/equipments/{equipment_id}/maintenance-records', {
+    path: { equipment_id: equipmentId },
+    body: payload,
+  });
 
 export const updateMaintenanceRecord = async (
   recordId: string,
   payload: UpdateMaintenancePayload
-): Promise<MaintenanceRecord> => {
-  const response = await api.patch<MaintenanceRecord>(`/maintenance-records/${recordId}`, payload);
-  return response.data;
-};
+) =>
+  requestJson('patch', '/maintenance-records/{record_id}', {
+    path: { record_id: recordId },
+    body: payload,
+  });
 
-export const deleteMaintenanceRecord = async (
-  recordId: string
-): Promise<{ message?: string }> => {
-  const response = await api.delete<{ message?: string }>(`/maintenance-records/${recordId}`);
-  return response.data;
-};
+export const deleteMaintenanceRecord = async (recordId: string) =>
+  requestJson('delete', '/maintenance-records/{record_id}', { path: { record_id: recordId } });
 
 // ---------------------------------------------------------------------------
 // Telemetria em Tempo Real, Histórico, Exportação CSV e Entrada Manual Offline
 // ---------------------------------------------------------------------------
 
-export const getRealtimeTelemetry = async (
-  params: GetRealtimeTelemetryParams = {}
-): Promise<{ equipment: RealtimeSnapshot[] }> => {
-  const response = await api.get<{ equipment: RealtimeSnapshot[] }>('/telemetry/realtime', {
-    params,
-  });
-  return response.data;
-};
+export const getRealtimeTelemetry = async (params: GetRealtimeTelemetryParams = {}) =>
+  requestJson('get', '/telemetry/realtime', { query: params });
 
-export const getTelemetryOverview = async (
-  params: GetTelemetryOverviewParams = {}
-): Promise<{ overview: Record<string, EquipmentOverviewItem> }> => {
-  const response = await api.get<{ overview: Record<string, EquipmentOverviewItem> }>(
-    '/telemetry/overview',
-    { params }
-  );
-  return response.data;
-};
+export const getTelemetryOverview = async (params: GetTelemetryOverviewParams = {}) =>
+  requestJson('get', '/telemetry/overview', { query: params });
 
 export const getEquipmentTelemetry = async (
   equipmentId: string,
   params: GetTelemetryParams = {}
-): Promise<{ data: TelemetryRow[]; count?: number }> => {
-  const response = await api.get<{ data: TelemetryRow[]; count?: number }>(
-    `/equipments/${equipmentId}/telemetry`,
-    { params }
-  );
-  return response.data;
-};
+) =>
+  requestJson('get', '/equipments/{equipment_id}/telemetry', {
+    path: { equipment_id: equipmentId },
+    query: params,
+  });
 
 export const exportEquipmentTelemetryCsv = async (
   equipmentId: string,
   params: ExportTelemetryParams = {}
-): Promise<AxiosResponse<Blob>> => {
-  const response = await api.get<Blob>(`/equipments/${equipmentId}/telemetry/export`, {
-    params,
-    responseType: 'blob',
+): Promise<AxiosResponse<Blob>> =>
+  requestBlob('/equipments/{equipment_id}/telemetry/export', {
+    path: { equipment_id: equipmentId },
+    query: params,
   });
-  return response;
-};
 
 export const submitManualTelemetry = async (
   equipmentId: string,
   payload: ManualTelemetryPayload
-): Promise<TelemetryRow> => {
-  const response = await api.post<TelemetryRow>(
-    `/equipments/${equipmentId}/telemetry/manual`,
-    payload
-  );
-  return response.data;
-};
+) =>
+  requestJson('post', '/equipments/{equipment_id}/telemetry/manual', {
+    path: { equipment_id: equipmentId },
+    body: payload,
+  });
 
 // ---------------------------------------------------------------------------
 // Alertas, Estatísticas e Regras de Alerta
 // ---------------------------------------------------------------------------
 
-export const getAlerts = async (
-  params: GetAlertsParams = {}
-): Promise<{ alerts: AlertItem[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ alerts: AlertItem[]; pagination?: PaginationMeta }>('/alerts', {
-    params,
-  });
-  return response.data;
-};
+export const getAlerts = async (params: GetAlertsParams = {}) =>
+  requestJson('get', '/alerts', { query: params });
 
-export const getAlertStatistics = async (
-  params: GetAlertStatisticsParams = {}
-): Promise<AlertStatistics> => {
-  const response = await api.get<AlertStatistics>('/alerts/statistics', { params });
-  return response.data;
-};
+export const getAlertStatistics = async (params: GetAlertStatisticsParams = {}) =>
+  requestJson('get', '/alerts/statistics', { query: params });
 
 export const exportAlertsCsv = async (
   params: GetAlertsParams = {}
-): Promise<AxiosResponse<Blob>> => {
-  const response = await api.get<Blob>('/alerts/export', {
-    params,
-    responseType: 'blob',
+): Promise<AxiosResponse<Blob>> =>
+  requestBlob('/alerts/export', { query: params });
+
+export const getAlert = async (alertId: string) =>
+  requestJson('get', '/alerts/{alert_id}', { path: { alert_id: alertId } });
+
+export const acknowledgeAlert = async (alertId: string, notes = '') =>
+  requestJson('post', '/alerts/{alert_id}/acknowledge', {
+    path: { alert_id: alertId },
+    body: { notes: notes?.trim() ? notes.trim() : null },
   });
-  return response;
-};
 
-export const getAlert = async (alertId: string): Promise<AlertItem> => {
-  const response = await api.get<AlertItem>(`/alerts/${alertId}`);
-  return response.data;
-};
+export const resolveAlert = async (alertId: string) =>
+  requestJson('post', '/alerts/{alert_id}/resolve', { path: { alert_id: alertId } });
 
-export const acknowledgeAlert = async (alertId: string, notes = ''): Promise<AlertItem> => {
-  const response = await api.post<AlertItem>(`/alerts/${alertId}/acknowledge`, {
-    notes: notes?.trim() ? notes.trim() : null,
+export const getAlertRules = async (params: GetAlertRulesParams = {}) =>
+  requestJson('get', '/alert-rules', { query: params });
+
+export const createAlertRule = async (payload: CreateAlertRulePayload) =>
+  requestJson('post', '/alert-rules', { body: payload });
+
+export const updateAlertRule = async (ruleId: string, payload: UpdateAlertRulePayload) =>
+  requestJson('patch', '/alert-rules/{rule_id}', {
+    path: { rule_id: ruleId },
+    body: payload,
   });
-  return response.data;
-};
 
-export const resolveAlert = async (alertId: string): Promise<AlertItem> => {
-  const response = await api.post<AlertItem>(`/alerts/${alertId}/resolve`);
-  return response.data;
-};
+export const deleteAlertRule = async (ruleId: string) =>
+  requestJson('delete', '/alert-rules/{rule_id}', { path: { rule_id: ruleId } });
 
-export const getAlertRules = async (
-  params: GetAlertRulesParams = {}
-): Promise<{ alert_rules: AlertRule[]; pagination?: PaginationMeta }> => {
-  const response = await api.get<{ alert_rules: AlertRule[]; pagination?: PaginationMeta }>(
-    '/alert-rules',
-    { params }
-  );
-  return response.data;
-};
-
-export const createAlertRule = async (payload: CreateAlertRulePayload): Promise<AlertRule> => {
-  const response = await api.post<AlertRule>('/alert-rules', payload);
-  return response.data;
-};
-
-export const updateAlertRule = async (
-  ruleId: string,
-  payload: UpdateAlertRulePayload
-): Promise<AlertRule> => {
-  const response = await api.patch<AlertRule>(`/alert-rules/${ruleId}`, payload);
-  return response.data;
-};
-
-export const deleteAlertRule = async (ruleId: string): Promise<void> => {
-  await api.delete(`/alert-rules/${ruleId}`);
-};
-
-export const getAlertRuleStatistics = async (ruleId: string): Promise<AlertRuleStatistics> => {
-  const response = await api.get<AlertRuleStatistics>(`/alert-rules/${ruleId}/statistics`);
-  return response.data;
-};
+export const getAlertRuleStatistics = async (ruleId: string) =>
+  requestJson('get', '/alert-rules/{rule_id}/statistics', { path: { rule_id: ruleId } });
 
 // ---------------------------------------------------------------------------
 // Trilha de Auditoria Imutável (Global Admin)
 // ---------------------------------------------------------------------------
 
-export const getAuditLogs = async (
-  params: GetAuditLogsParams = {}
-): Promise<{ audit_logs: AuditLogItem[]; next_page_token?: string | null }> => {
-  const response = await api.get<{ audit_logs: AuditLogItem[]; next_page_token?: string | null }>(
-    '/audit-logs',
-    { params }
-  );
-  return response.data;
-};
+export const getAuditLogs = async (params: GetAuditLogsParams = {}) =>
+  requestJson('get', '/audit-logs', { query: params });

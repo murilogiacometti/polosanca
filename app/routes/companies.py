@@ -10,13 +10,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.selectable import Subquery
 
 from app import db
+from app.enums import AuditEntityType
 from app.models import Branch, Company, CompanyStatus, Equipment, User, UserRole
-from app.schemas import CompanyCreateSchema, CompanyUpdatePayload, CompanyUpdateSchema, validate_request_schema
+from app.schemas import (
+    CompaniesListResponse,
+    CompaniesQuery,
+    CompanyCreateRequest,
+    CompanyUpdateRequest,
+    DeactivateCompanyResponse,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
+)
+from app.schemas import Company as CompanyResponse
 from app.utils import clamp_pagination, record_audit_log
 
 companies_bp = Blueprint("companies", __name__)
-_company_create_schema = CompanyCreateSchema()
-_company_update_schema = CompanyUpdateSchema()
 
 
 def _company_counts_subqueries() -> tuple[Subquery, Subquery]:
@@ -42,6 +52,12 @@ def _company_counts_subqueries() -> tuple[Subquery, Subquery]:
 
 
 @companies_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List companies",
+    tags=["Companies"],
+    query_params=CompaniesQuery,
+    responses={200: CompaniesListResponse},
+)
 @jwt_required()
 def get_companies() -> tuple[Response, int]:
     """Get all companies with pagination and single-query aggregate counts."""
@@ -53,11 +69,12 @@ def get_companies() -> tuple[Response, int]:
     if user.role != UserRole.GLOBAL_ADMIN:
         return jsonify({"error": "Forbidden"}), 403
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
-    status_filter = request.args.get("status")
+    query_params, q_err = validate_query_model(CompaniesQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
+    status_filter = query_params.status
 
     branches_sq, equipments_sq = _company_counts_subqueries()
     query = (
@@ -71,17 +88,15 @@ def get_companies() -> tuple[Response, int]:
     )
 
     if status_filter:
-        try:
-            query = query.filter(Company.status == CompanyStatus(status_filter))
-        except ValueError:
-            return jsonify({"error": "Invalid status filter"}), 400
+        query = query.filter(Company.status == status_filter)
 
     query = query.order_by(Company.created_at.desc())
     total = query.count()
     items = query.offset((page - 1) * limit).limit(limit).all()
     total_pages = (total + limit - 1) // limit if total else 0
 
-    return jsonify(
+    return json_response(
+        CompaniesListResponse,
         {
             "companies": [
                 company.to_dict(branches_count=b_cnt, equipment_count=e_cnt) for company, b_cnt, e_cnt in items
@@ -92,11 +107,17 @@ def get_companies() -> tuple[Response, int]:
                 "total": total,
                 "total_pages": total_pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @companies_bp.route("/<company_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get company by ID",
+    tags=["Companies"],
+    responses={200: CompanyResponse},
+)
 @jwt_required()
 def get_company(company_id: str) -> tuple[Response, int]:
     """Get a specific company with single-query aggregate counts."""
@@ -126,10 +147,16 @@ def get_company(company_id: str) -> tuple[Response, int]:
     if user.role != UserRole.GLOBAL_ADMIN and str(user.company_id) != str(company.id):
         return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(company.to_dict(branches_count=b_cnt, equipment_count=e_cnt)), 200
+    return json_response(CompanyResponse, company.to_dict(branches_count=b_cnt, equipment_count=e_cnt), 200)
 
 
 @companies_bp.route("", methods=["POST"])
+@openapi_meta(
+    summary="Create a new company",
+    tags=["Companies"],
+    request_body=CompanyCreateRequest,
+    responses={201: CompanyResponse},
+)
 @jwt_required()
 def create_company() -> tuple[Response, int]:
     """Create a new company (Global Admin only)."""
@@ -142,18 +169,18 @@ def create_company() -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_company_create_schema, raw_data)
+    data, val_err = validate_request_model(CompanyCreateRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    name = data["name"]
+    name = data.name
     if Company.query.filter_by(name=name).first():
         return jsonify({"error": "A company with this name already exists"}), 400
 
     company = Company(
         name=name,
-        contact_email=data.get("contact_email"),
-        contact_phone=data.get("contact_phone"),
+        contact_email=data.contact_email,
+        contact_phone=data.contact_phone,
     )
 
     try:
@@ -162,7 +189,7 @@ def create_company() -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="create_company",
-            entity_type="company",
+            entity_type=AuditEntityType.COMPANY,
             entity_id=company.id,
             changes={"name": company.name},
         )
@@ -171,23 +198,24 @@ def create_company() -> tuple[Response, int]:
         db.session.rollback()
         return jsonify({"error": "A company with this name already exists"}), 400
 
-    return jsonify(company.to_dict(branches_count=0, equipment_count=0)), 201
+    return json_response(CompanyResponse, company.to_dict(branches_count=0, equipment_count=0), 201)
 
 
-def _apply_company_updates(company: Company, data: CompanyUpdatePayload) -> dict[str, object]:
+def _apply_company_updates(company: Company, data: CompanyUpdateRequest) -> dict[str, object]:
     """Apply validated partial update fields to a Company and return the audit diff."""
     changes: dict[str, object] = {}
-    if "name" in data and data["name"] != company.name:
-        changes["name"] = {"old": company.name, "new": data["name"]}
-        company.name = data["name"]
-    if "contact_email" in data and data["contact_email"] != company.contact_email:
-        changes["contact_email"] = {"old": company.contact_email, "new": data["contact_email"]}
-        company.contact_email = data["contact_email"]
-    if "contact_phone" in data and data["contact_phone"] != company.contact_phone:
-        changes["contact_phone"] = {"old": company.contact_phone, "new": data["contact_phone"]}
-        company.contact_phone = data["contact_phone"]
-    if "status" in data:
-        new_status = CompanyStatus(data["status"])
+    fields = data.model_fields_set
+    if "name" in fields and data.name is not None and data.name != company.name:
+        changes["name"] = {"old": company.name, "new": data.name}
+        company.name = data.name
+    if "contact_email" in fields and data.contact_email != company.contact_email:
+        changes["contact_email"] = {"old": company.contact_email, "new": data.contact_email}
+        company.contact_email = data.contact_email
+    if "contact_phone" in fields and data.contact_phone != company.contact_phone:
+        changes["contact_phone"] = {"old": company.contact_phone, "new": data.contact_phone}
+        company.contact_phone = data.contact_phone
+    if "status" in fields and data.status is not None:
+        new_status = CompanyStatus(data.status)
         if new_status != company.status:
             changes["status"] = {"old": company.status.value, "new": new_status.value}
             company.status = new_status
@@ -195,6 +223,12 @@ def _apply_company_updates(company: Company, data: CompanyUpdatePayload) -> dict
 
 
 @companies_bp.route("/<company_id>", methods=["PATCH"])
+@openapi_meta(
+    summary="Update company",
+    tags=["Companies"],
+    request_body=CompanyUpdateRequest,
+    responses={200: CompanyResponse},
+)
 @jwt_required()
 def update_company(company_id: str) -> tuple[Response, int]:
     """Update a company (Global Admin or own Company Admin; status changes Global Admin only)."""
@@ -217,7 +251,7 @@ def update_company(company_id: str) -> tuple[Response, int]:
     if isinstance(raw_data, dict) and "status" in raw_data and user.role != UserRole.GLOBAL_ADMIN:
         return jsonify({"error": "Only Global Administrators can change company status"}), 403
 
-    data, val_err = validate_request_schema(_company_update_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(CompanyUpdateRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
@@ -227,7 +261,7 @@ def update_company(company_id: str) -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="update_company",
-            entity_type="company",
+            entity_type=AuditEntityType.COMPANY,
             entity_id=company.id,
             changes=changes or None,
         )
@@ -236,10 +270,15 @@ def update_company(company_id: str) -> tuple[Response, int]:
         db.session.rollback()
         return jsonify({"error": "A company with this name already exists"}), 400
 
-    return jsonify(company.to_dict()), 200
+    return json_response(CompanyResponse, company.to_dict(), 200)
 
 
 @companies_bp.route("/<company_id>", methods=["DELETE"])
+@openapi_meta(
+    summary="Deactivate company",
+    tags=["Companies"],
+    responses={200: DeactivateCompanyResponse},
+)
 @jwt_required()
 def delete_company(company_id: str) -> tuple[Response, int]:
     """Soft-deactivate a company (Global Admin only) — preserves all historical records."""
@@ -260,10 +299,12 @@ def delete_company(company_id: str) -> tuple[Response, int]:
     record_audit_log(
         user_id=user.id,
         action="deactivate_company",
-        entity_type="company",
+        entity_type=AuditEntityType.COMPANY,
         entity_id=company.id,
         changes={"status": {"old": old_status, "new": CompanyStatus.INACTIVE.value}},
     )
     db.session.commit()
 
-    return jsonify({"message": "Company deactivated", "status": company.status.value}), 200
+    return json_response(
+        DeactivateCompanyResponse, {"message": "Company deactivated", "status": company.status.value}, 200
+    )

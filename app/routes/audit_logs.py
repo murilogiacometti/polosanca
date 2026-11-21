@@ -11,10 +11,10 @@ from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import literal, tuple_
 from sqlalchemy.orm import Query
-from werkzeug.datastructures import MultiDict
 
 from app import db
 from app.models import AuditLog, User, UserRole
+from app.schemas import AuditLogsListResponse, AuditLogsQuery, json_response, openapi_meta, validate_query_model
 from app.utils import (
     clamp_pagination,
     decode_page_token,
@@ -43,31 +43,37 @@ def _decode_audit_cursor(
 
 
 def _apply_audit_log_filters(
-    query: Query[AuditLog], args: MultiDict[str, str]
+    query: Query[AuditLog], query_params: AuditLogsQuery
 ) -> tuple[Query[AuditLog] | None, tuple[Response, int] | None]:
     """Apply optional query-string filters to an AuditLog query."""
-    if args.get("user_id"):
-        query = query.filter(AuditLog.user_id == args["user_id"])
-    if args.get("entity_type"):
-        query = query.filter(AuditLog.entity_type == args["entity_type"])
-    if args.get("entity_id"):
-        query = query.filter(AuditLog.entity_id == args["entity_id"])
-    if args.get("action"):
-        query = query.filter(AuditLog.action == args["action"])
-    if args.get("start_date"):
+    if query_params.user_id:
+        query = query.filter(AuditLog.user_id == query_params.user_id)
+    if query_params.entity_type:
+        query = query.filter(AuditLog.entity_type == query_params.entity_type.value)
+    if query_params.entity_id:
+        query = query.filter(AuditLog.entity_id == query_params.entity_id)
+    if query_params.action:
+        query = query.filter(AuditLog.action == query_params.action)
+    if query_params.start_date:
         try:
-            query = query.filter(AuditLog.created_at >= parse_iso_datetime(args["start_date"]))
+            query = query.filter(AuditLog.created_at >= parse_iso_datetime(query_params.start_date))
         except ValueError:
             return None, (jsonify({"error": "Invalid start_date ISO timestamp"}), 400)
-    if args.get("end_date"):
+    if query_params.end_date:
         try:
-            query = query.filter(AuditLog.created_at <= parse_iso_datetime(args["end_date"]))
+            query = query.filter(AuditLog.created_at <= parse_iso_datetime(query_params.end_date))
         except ValueError:
             return None, (jsonify({"error": "Invalid end_date ISO timestamp"}), 400)
     return query, None
 
 
 @audit_logs_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List audit logs",
+    tags=["Audit Logs"],
+    query_params=AuditLogsQuery,
+    responses={200: AuditLogsListResponse},
+)
 @jwt_required()
 def get_audit_logs() -> tuple[Response, int]:
     """List immutable administrative audit events (Global Admin only) with keyset page_token support."""
@@ -79,26 +85,28 @@ def get_audit_logs() -> tuple[Response, int]:
     if user.role != UserRole.GLOBAL_ADMIN:
         return jsonify({"error": "Forbidden"}), 403
 
-    raw_limit = request.args.get("page_size", type=int)
-    if raw_limit is None:
-        raw_limit = request.args.get("limit", 20, type=int)
+    query_params, q_err = validate_query_model(AuditLogsQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    raw_limit = query_params.page_size or query_params.limit
     page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
+        query_params.page,
         raw_limit,
         default_limit=20,
         max_limit=100,
     )
 
-    cursor_time, cursor_id, token_err = _decode_audit_cursor(request.args.get("page_token"))
+    cursor_time, cursor_id, token_err = _decode_audit_cursor(query_params.page_token)
     if token_err:
         return token_err
 
-    query, filter_err = _apply_audit_log_filters(AuditLog.query, request.args)
+    query, filter_err = _apply_audit_log_filters(AuditLog.query, query_params)
     if filter_err is not None or query is None:
         return filter_err or (jsonify({"error": "Invalid query filters"}), 400)
 
     total = query.count()
-    total_pages = math.ceil(total / limit) if total > 0 else 0
+    total_pages = math.ceil(total / limit)
 
     if cursor_time is not None and cursor_id is not None:
         fetched = (
@@ -123,7 +131,8 @@ def get_audit_logs() -> tuple[Response, int]:
             }
         )
 
-    return jsonify(
+    return json_response(
+        AuditLogsListResponse,
         {
             "audit_logs": [log.to_dict() for log in items],
             "next_page_token": next_page_token,
@@ -133,5 +142,6 @@ def get_audit_logs() -> tuple[Response, int]:
                 "total": total,
                 "total_pages": total_pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )

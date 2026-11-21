@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   BarChartOutlined,
   DeleteOutlined,
@@ -6,14 +5,12 @@ import {
   PlusOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
-  App as AntdApp,
   Button,
   Card,
   Empty,
-  Modal,
   Popconfirm,
   Space,
   Spin,
@@ -23,32 +20,19 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import {
-  deleteAlertRule,
-  getAlertRules,
-  getAlertRuleStatistics,
-  getEquipmentAlertRules,
-  getEquipments,
-  updateAlertRule,
-} from '../../api';
+import { getAlertRules, getEquipments } from '../../api';
 import { useAuth } from '../../context/authContextObject';
-import { useSuspendShortcuts } from '../../context/uiShellContextObject';
-import type {
-  AlertRuleStatistics,
-  AlertSeverity,
-  AlertType,
-  Equipment,
-} from '../../types/models';
+import type { AlertRule, AlertSeverity, AlertType, Equipment } from '../../types/models';
 import {
   ALERT_SCOPE_LABELS,
   ALERT_SEVERITY_CONFIG,
   ALERT_TYPE_LABELS,
-  extractApiError,
   formatAlertRuleCondition,
 } from '../../utils/formatters';
-import AlertRuleModalForm, { type AlertRuleRecord } from '../Modals/AlertRuleModalForm';
+import AlertRuleFormModal from '../Modals/AlertRuleFormModal';
 import AlertRuleStatsModal from '../Modals/AlertRuleStatsModal';
 import AlertRulePrecedenceCard from './AlertRulePrecedenceCard';
+import { useAlertRuleManagement } from './useAlertRuleManagement';
 
 const { Text } = Typography;
 
@@ -56,9 +40,9 @@ interface BuildRuleColumnsOptions {
   companyName?: string | null;
   eqMap: Record<string, string>;
   isGlobalAdmin: boolean;
-  onToggleActive: (rule: AlertRuleRecord, checked: boolean) => Promise<void>;
-  onOpenStats: (rule: AlertRuleRecord) => Promise<void>;
-  onEdit: (rule: AlertRuleRecord) => void;
+  onToggleActive: (rule: AlertRule, checked: boolean) => Promise<void>;
+  onOpenStats: (rule: AlertRule) => Promise<void>;
+  onEdit: (rule: AlertRule) => void;
   onDelete: (ruleId: string) => Promise<void>;
 }
 
@@ -70,7 +54,7 @@ function buildCompanyRuleColumns({
   onOpenStats,
   onEdit,
   onDelete,
-}: BuildRuleColumnsOptions): ColumnsType<AlertRuleRecord> {
+}: BuildRuleColumnsOptions): ColumnsType<AlertRule> {
   return [
     {
       title: 'Regra',
@@ -96,7 +80,7 @@ function buildCompanyRuleColumns({
         let target = 'Herdada do Padrão Global';
         if (r.scope === 'company') target = companyName || 'Específica da Empresa';
         if (r.scope === 'equipment') {
-          const scopeKey = r.scope_id || r.equipment_id || '';
+          const scopeKey = r.scope_id || '';
           target = `Equipamento: ${eqMap[scopeKey] || scopeKey}`;
         }
         return (
@@ -161,7 +145,7 @@ function buildCompanyRuleColumns({
             title: 'Ações',
             key: 'actions',
             width: 220,
-            render: (_: unknown, record: AlertRuleRecord) => (
+            render: (_: unknown, record: AlertRule) => (
               <Space size="small">
                 <Button
                   size="small"
@@ -170,11 +154,7 @@ function buildCompanyRuleColumns({
                     void onOpenStats(record);
                   }}
                 />
-                <Button
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => onEdit(record)}
-                >
+                <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(record)}>
                   Editar
                 </Button>
                 <Popconfirm
@@ -205,21 +185,25 @@ export default function CompanyRulesPanel({
   companyId,
   companyName,
 }: CompanyRulesPanelProps) {
-  const { message } = AntdApp.useApp();
   const { isGlobalAdmin } = useAuth();
-  const qc = useQueryClient();
+  const {
+    ruleModalOpen,
+    editingRule,
+    openCreateModal,
+    openEditModal,
+    closeRuleModal,
+    statsRule,
+    ruleStats,
+    statsLoading,
+    handleOpenStats,
+    closeStatsModal,
+    refreshRules,
+    handleRuleSaved,
+    handleToggleActive,
+    handleDelete,
+  } = useAlertRuleManagement();
 
-  const [inspectedEquipmentId, setInspectedEquipmentId] = useState<string | undefined>(undefined);
-
-  const [ruleModalOpen, setRuleModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<AlertRuleRecord | null>(null);
-  const [statsRule, setStatsRule] = useState<AlertRuleRecord | null>(null);
-  const [ruleStats, setRuleStats] = useState<AlertRuleStatistics | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-
-  useSuspendShortcuts(ruleModalOpen || Boolean(statsRule));
-
-  const companyRulesQuery = useQuery<{ rules: AlertRuleRecord[]; equipments: Equipment[] }>({
+  const companyRulesQuery = useQuery<{ rules: AlertRule[]; equipments: Equipment[] }>({
     queryKey: ['alert-rules', 'company-panel', companyId ?? null, isGlobalAdmin],
     enabled: Boolean(companyId),
     queryFn: async () => {
@@ -232,7 +216,7 @@ export default function CompanyRulesPanel({
           getAlertRules({ company_id: companyId, limit: 100 }),
           getEquipments({ company_id: companyId, limit: 100 }),
         ]);
-        const mergedMap = new Map<string, AlertRuleRecord>();
+        const mergedMap = new Map<string, AlertRule>();
         (scopedRes?.alert_rules || []).forEach((r) => mergedMap.set(r.id, r));
         (globalRes?.alert_rules || []).forEach((r) => {
           if (!mergedMap.has(r.id)) mergedMap.set(r.id, r);
@@ -253,63 +237,9 @@ export default function CompanyRulesPanel({
     },
   });
 
-  const inspectedRulesQuery = useQuery<AlertRuleRecord[]>({
-    queryKey: ['alert-rules', 'inspect', inspectedEquipmentId ?? null],
-    enabled: Boolean(inspectedEquipmentId),
-    queryFn: async () => {
-      if (!inspectedEquipmentId) return [];
-      const res = await getEquipmentAlertRules(inspectedEquipmentId);
-      return res?.applicable_rules || [];
-    },
-  });
-
   const rules = companyRulesQuery.data?.rules ?? [];
   const equipments = companyRulesQuery.data?.equipments ?? [];
   const loading = companyRulesQuery.isFetching;
-  const inspectedRules = inspectedEquipmentId ? (inspectedRulesQuery.data ?? []) : [];
-  const inspecting = inspectedRulesQuery.isFetching;
-
-  const loadRulesAndEquipments = async (): Promise<void> => {
-    await qc.invalidateQueries({ queryKey: ['alert-rules'] });
-  };
-
-  const handleInspectEquipment = (eqId: string | undefined): void => {
-    setInspectedEquipmentId(eqId);
-  };
-
-  const handleToggleActive = async (rule: AlertRuleRecord, checked: boolean): Promise<void> => {
-    try {
-      await updateAlertRule(rule.id, { is_active: checked });
-      message.success(checked ? 'Regra ativada.' : 'Regra desativada.');
-      await loadRulesAndEquipments();
-    } catch (err) {
-      message.error(extractApiError(err, 'Não foi possível alterar o estado da regra.'));
-    }
-  };
-
-  const handleDelete = async (ruleId: string): Promise<void> => {
-    try {
-      await deleteAlertRule(ruleId);
-      message.success('Regra removida. Histórico de alertas preservado.');
-      await loadRulesAndEquipments();
-    } catch (err) {
-      message.error(extractApiError(err, 'Erro ao excluir regra.'));
-    }
-  };
-
-  const handleOpenStats = async (rule: AlertRuleRecord): Promise<void> => {
-    setStatsRule(rule);
-    setRuleStats(null);
-    setStatsLoading(true);
-    try {
-      const res = await getAlertRuleStatistics(rule.id);
-      setRuleStats(res);
-    } catch (err) {
-      message.error(extractApiError(err, 'Erro ao consultar estatísticas da regra.'));
-    } finally {
-      setStatsLoading(false);
-    }
-  };
 
   const eqMap: Record<string, string> = Object.fromEntries(
     equipments.map((e) => [e.id, e.serial])
@@ -321,10 +251,7 @@ export default function CompanyRulesPanel({
     isGlobalAdmin,
     onToggleActive: handleToggleActive,
     onOpenStats: handleOpenStats,
-    onEdit: (record) => {
-      setEditingRule(record);
-      setRuleModalOpen(true);
-    },
+    onEdit: openEditModal,
     onDelete: handleDelete,
   });
 
@@ -346,20 +273,13 @@ export default function CompanyRulesPanel({
             <Button
               icon={<ReloadOutlined />}
               onClick={() => {
-                void loadRulesAndEquipments();
+                void refreshRules();
               }}
             >
               Atualizar
             </Button>
             {isGlobalAdmin && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setEditingRule(null);
-                  setRuleModalOpen(true);
-                }}
-              >
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
                 Nova Regra para Empresa
               </Button>
             )}
@@ -373,7 +293,7 @@ export default function CompanyRulesPanel({
         ) : rules.length === 0 ? (
           <Empty description="Nenhuma regra aplicável encontrada." />
         ) : (
-          <Table<AlertRuleRecord>
+          <Table<AlertRule>
             rowKey="id"
             columns={columns}
             dataSource={rules}
@@ -385,46 +305,28 @@ export default function CompanyRulesPanel({
 
       <AlertRulePrecedenceCard
         equipments={equipments}
-        inspectedEquipmentId={inspectedEquipmentId}
-        inspectingLoading={inspecting}
-        inspectedRules={inspectedRules}
-        onInspectEquipment={handleInspectEquipment}
         title="Simulador de Precedência por Equipamento"
         selectPlaceholder="Testar equipamento desta empresa"
         emptyDescription="Selecione um equipamento acima para inspecionar regras em vigor vs. regras sombreadas."
       />
 
-      <Modal
+      <AlertRuleFormModal
         open={ruleModalOpen}
-        onCancel={() => setRuleModalOpen(false)}
-        footer={null}
-        destroyOnHidden
-        title={editingRule ? 'Editar Regra de Alerta' : 'Nova Regra de Alerta'}
-        width={620}
-      >
-        {ruleModalOpen && (
-          <AlertRuleModalForm
-            rule={editingRule}
-            equipments={equipments}
-            defaultScope="company"
-            allowedScopes={['company', 'equipment']}
-            fixedCompanyId={companyId ?? undefined}
-            companyName={companyName ?? undefined}
-            onCancel={() => setRuleModalOpen(false)}
-            onSaved={async () => {
-              setRuleModalOpen(false);
-              await loadRulesAndEquipments();
-              if (inspectedEquipmentId) handleInspectEquipment(inspectedEquipmentId);
-            }}
-          />
-        )}
-      </Modal>
+        rule={editingRule}
+        equipments={equipments}
+        defaultScope="company"
+        allowedScopes={['company', 'equipment']}
+        fixedCompanyId={companyId ?? undefined}
+        companyName={companyName ?? undefined}
+        onCancel={closeRuleModal}
+        onSaved={handleRuleSaved}
+      />
 
       <AlertRuleStatsModal
         rule={statsRule}
         loading={statsLoading}
         stats={ruleStats}
-        onClose={() => setStatsRule(null)}
+        onClose={closeStatsModal}
       />
     </Space>
   );

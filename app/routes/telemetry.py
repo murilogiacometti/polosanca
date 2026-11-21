@@ -8,8 +8,8 @@ import math
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
-from typing import Literal, Protocol
+from decimal import Decimal
+from typing import Protocol
 
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -20,6 +20,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.datastructures import MultiDict
 
 from app import db, limiter
+from app.enums import AuditEntityType, BinaryDeviceState, DoorState, TelemetryInterval
 from app.models import (
     AlertRule,
     AlertRuleScope,
@@ -33,10 +34,21 @@ from app.models import (
     UserRole,
 )
 from app.schemas import (
-    HardwareTelemetryPayload,
-    HardwareTelemetrySchema,
-    ManualTelemetrySchema,
-    validate_request_schema,
+    Error,
+    HardwareTelemetryRequest,
+    HardwareTelemetryResponse,
+    ManualTelemetryRequest,
+    ManualTelemetryResponse,
+    RealtimeTelemetryListResponse,
+    TelemetryExportQuery,
+    TelemetryHistoryResponse,
+    TelemetryOverviewResponse,
+    TelemetryQuery,
+    TelemetryScopeQuery,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
 )
 from app.services import SCOPE_PRIORITY, enqueue_equipment_evaluation
 from app.utils import (
@@ -57,28 +69,10 @@ from app.utils import (
 )
 
 telemetry_bp = Blueprint("telemetry", __name__)
-_hardware_telemetry_schema = HardwareTelemetrySchema()
-_manual_telemetry_schema = ManualTelemetrySchema()
 
-TelemetryInterval = Literal["raw", "5min", "1hour", "1day"]
-VALID_INTERVALS: tuple[TelemetryInterval, ...] = ("raw", "5min", "1hour", "1day")
 RAW_EXPORT_MAX_WINDOW = timedelta(days=90)
 AGGREGATED_EXPORT_MAX_WINDOW = timedelta(days=731)
 MAX_REQUEST_ID_LENGTH = 128
-
-
-def _parse_telemetry_interval(raw: str) -> TelemetryInterval | None:
-    """Narrow a query-string interval parameter to a validated TelemetryInterval literal."""
-    if raw == "raw":
-        return "raw"
-    if raw == "5min":
-        return "5min"
-    if raw == "1hour":
-        return "1hour"
-    if raw == "1day":
-        return "1day"
-    return None
-
 
 ALLOWED_PROJECTION_FIELDS = {
     "id",
@@ -98,32 +92,6 @@ ALLOWED_PROJECTION_FIELDS = {
     "notes",
     "sample_count",
 }
-
-
-def _parse_binary_flag(raw_value: object, field_name: str) -> int:
-    """Validate and parse a 0/1 binary component state."""
-    if raw_value is None or isinstance(raw_value, bool) or not isinstance(raw_value, int | float | str | Decimal):
-        raise ValueError(f"{field_name} must be 0 or 1")
-    try:
-        parsed = int(raw_value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field_name} must be 0 or 1") from exc
-    if parsed not in (0, 1):
-        raise ValueError(f"{field_name} must be 0 or 1")
-    return parsed
-
-
-def _parse_decimal(raw_value: object, field_name: str) -> Decimal:
-    """Validate and parse a finite numeric sensor reading."""
-    if raw_value is None or isinstance(raw_value, bool) or raw_value == "":
-        raise ValueError(f"{field_name} is required")
-    try:
-        dec = Decimal(str(raw_value))
-    except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ValueError(f"{field_name} must be a valid number") from exc
-    if not dec.is_finite():
-        raise ValueError(f"{field_name} must be finite")
-    return dec
 
 
 def _extract_request_id(data: Mapping[str, object]) -> str | None:
@@ -183,20 +151,27 @@ def _find_idempotent_telemetry(equipment_id: uuid.UUID, request_id: str | None) 
     )
 
 
-def _build_current_data_snapshot(data: HardwareTelemetryPayload, now: datetime) -> CurrentDataSnapshot:
+def _build_current_data_snapshot(data: HardwareTelemetryRequest, now: datetime) -> CurrentDataSnapshot:
     """Build Equipment.current_data JSONB payload from validated hardware telemetry."""
     return {
-        "temperature": float(data["temperature"]),
-        "pressure": float(data["pressure"]),
-        "door": "open" if data["door"] == 1 else "closed",
-        "heater": "on" if data["heater"] == 1 else "off",
-        "compressor": "on" if data["compressor"] == 1 else "off",
-        "fan": "on" if data["fan"] == 1 else "off",
+        "temperature": float(data.temperature),
+        "pressure": float(data.pressure),
+        "door": DoorState.OPEN if data.door == 1 else DoorState.CLOSED,
+        "heater": BinaryDeviceState.ON if data.heater == 1 else BinaryDeviceState.OFF,
+        "compressor": BinaryDeviceState.ON if data.compressor == 1 else BinaryDeviceState.OFF,
+        "fan": BinaryDeviceState.ON if data.fan == 1 else BinaryDeviceState.OFF,
         "last_update": now.isoformat(),
     }
 
 
 @telemetry_bp.route("/equipments/telemetry", methods=["POST"])
+@openapi_meta(
+    summary="Ingest hardware telemetry reading",
+    tags=["Telemetry"],
+    security=["ApiKeyAuth"],
+    request_body=HardwareTelemetryRequest,
+    responses={200: HardwareTelemetryResponse, 429: Error},
+)
 @limiter.limit("60 per minute", key_func=get_remote_address)
 @limiter.limit("12 per minute", key_func=get_telemetry_rate_key)
 def submit_telemetry() -> tuple[Response, int]:
@@ -217,7 +192,7 @@ def submit_telemetry() -> tuple[Response, int]:
     if raw_data is None and request.form:
         raw_data = request.form.to_dict()
 
-    data, val_err = validate_request_schema(_hardware_telemetry_schema, raw_data)
+    data, val_err = validate_request_model(HardwareTelemetryRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
@@ -227,7 +202,7 @@ def submit_telemetry() -> tuple[Response, int]:
     except ValueError as err:
         return jsonify({"error": str(err)}), 400
 
-    equipment, auth_err = _authenticate_hardware_equipment(data["serial"], api_key)
+    equipment, auth_err = _authenticate_hardware_equipment(data.serial, api_key)
     if auth_err is not None or equipment is None:
         return auth_err or (jsonify({"error": "Equipment serial not found"}), 404)
 
@@ -243,25 +218,27 @@ def submit_telemetry() -> tuple[Response, int]:
         existing = _find_idempotent_telemetry(locked_eq.id, request_id)
         if existing is not None:
             db.session.commit()
-            return jsonify(
+            return json_response(
+                HardwareTelemetryResponse,
                 {
                     "success": True,
                     "message": "Telemetry data already recorded (idempotent replay)",
                     "timestamp": existing.time.isoformat(),
                     "record_id": str(existing.id),
                     "deduplicated": True,
-                }
-            ), 200
+                },
+                200,
+            )
 
         telemetry = Telemetry(
             time=now,
             equipment_id=locked_eq.id,
-            temperature=data["temperature"],
-            pressure=data["pressure"],
-            door=data["door"],
-            heater=data["heater"],
-            compressor=data["compressor"],
-            fan=data["fan"],
+            temperature=data.temperature,
+            pressure=data.pressure,
+            door=data.door,
+            heater=data.heater,
+            compressor=data.compressor,
+            fan=data.fan,
             source="device",
             request_id=request_id,
         )
@@ -283,14 +260,16 @@ def submit_telemetry() -> tuple[Response, int]:
 
     enqueue_equipment_evaluation(locked_eq.id)
 
-    return jsonify(
+    return json_response(
+        HardwareTelemetryResponse,
         {
             "success": True,
             "message": "Telemetry data recorded successfully",
             "timestamp": telemetry.time.isoformat(),
             "record_id": str(telemetry.id),
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 def _is_equipment_offline(equipment: Equipment, now: datetime) -> bool:
@@ -327,6 +306,12 @@ def _load_locked_manual_equipment(
 
 
 @telemetry_bp.route("/equipments/<equipment_id>/telemetry/manual", methods=["POST"])
+@openapi_meta(
+    summary="Log manual temperature reading",
+    tags=["Telemetry"],
+    request_body=ManualTelemetryRequest,
+    responses={201: ManualTelemetryResponse, 409: Error},
+)
 @jwt_required()
 def submit_manual_telemetry(equipment_id: str) -> tuple[Response, int]:
     """
@@ -344,22 +329,22 @@ def submit_manual_telemetry(equipment_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_manual_telemetry_schema, raw_data)
+    data, val_err = validate_request_model(ManualTelemetryRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    temperature = data["temperature"]
+    temperature = data.temperature
 
     now = utc_now()
     recorded_at = now
-    raw_recorded_at = data.get("recorded_at")
+    raw_recorded_at = data.recorded_at
     if raw_recorded_at is not None:
         try:
             recorded_at = parse_iso_datetime(raw_recorded_at)
         except ValueError:
             return jsonify({"error": "Invalid recorded_at ISO timestamp"}), 400
 
-    raw_notes = data.get("notes")
+    raw_notes = data.notes
     notes = raw_notes.strip() if raw_notes is not None else None
 
     locked_eq, eq_err = _load_locked_manual_equipment(user, equipment_id)
@@ -397,7 +382,7 @@ def submit_manual_telemetry(equipment_id: str) -> tuple[Response, int]:
     record_audit_log(
         user_id=user.id,
         action="create_manual_telemetry",
-        entity_type="equipment",
+        entity_type=AuditEntityType.EQUIPMENT,
         entity_id=locked_eq.id,
         changes={
             "record_id": str(telemetry.id),
@@ -407,18 +392,19 @@ def submit_manual_telemetry(equipment_id: str) -> tuple[Response, int]:
     )
     db.session.commit()
 
-    return jsonify(
+    return json_response(
+        ManualTelemetryResponse,
         {
             "success": True,
-            "message": "Manual temperature reading recorded successfully",
+            "equipment_id": str(locked_eq.id),
             "timestamp": telemetry.time.isoformat(),
-            "record_id": str(telemetry.id),
+            "temperature": float(telemetry.temperature),
             "source": "manual",
             "recorded_by": str(user.id),
-            "temperature": float(telemetry.temperature),
             "notes": telemetry.notes,
-        }
-    ), 201
+        },
+        201,
+    )
 
 
 def _load_authorized_equipment(equipment_id: str) -> tuple[Equipment | None, tuple[Response, int] | None]:
@@ -442,19 +428,20 @@ def _load_authorized_equipment(equipment_id: str) -> tuple[Equipment | None, tup
 
 
 def _parse_telemetry_date_range(
-    args: MultiDict[str, str],
+    start_date: str | None,
+    end_date: str | None,
 ) -> tuple[datetime | None, datetime | None, tuple[Response, int] | None]:
     """Parse optional start_date/end_date ISO query parameters and validate ordering."""
     start_dt = None
     end_dt = None
-    if args.get("start_date"):
+    if start_date:
         try:
-            start_dt = parse_iso_datetime(args["start_date"])
+            start_dt = parse_iso_datetime(start_date)
         except ValueError:
             return None, None, (jsonify({"error": "Invalid start_date ISO timestamp"}), 400)
-    if args.get("end_date"):
+    if end_date:
         try:
-            end_dt = parse_iso_datetime(args["end_date"])
+            end_dt = parse_iso_datetime(end_date)
         except ValueError:
             return None, None, (jsonify({"error": "Invalid end_date ISO timestamp"}), 400)
     if start_dt and end_dt and start_dt > end_dt:
@@ -552,13 +539,11 @@ def _telemetry_bucket_expr(interval: TelemetryInterval) -> ColumnElement[datetim
     return func.date_trunc("day", Telemetry.time)
 
 
-def _parse_telemetry_pagination(args: MultiDict[str, str]) -> tuple[int, int]:
+def _parse_telemetry_pagination(query_params: TelemetryQuery) -> tuple[int, int]:
     """Parse bounded pagination parameters supporting page_size or limit."""
-    raw_limit = args.get("page_size", type=int)
-    if raw_limit is None:
-        raw_limit = args.get("limit", 100, type=int)
+    raw_limit = query_params.page_size if query_params.page_size is not None else query_params.limit
     return clamp_pagination(
-        args.get("page", 1, type=int),
+        query_params.page,
         raw_limit,
         default_limit=100,
         max_limit=1000,
@@ -601,6 +586,12 @@ def _fetch_telemetry_rows(
 
 
 @telemetry_bp.route("/equipments/<equipment_id>/telemetry", methods=["GET"])
+@openapi_meta(
+    summary="Get historical equipment telemetry",
+    tags=["Telemetry"],
+    query_params=TelemetryQuery,
+    responses={200: TelemetryHistoryResponse},
+)
 @jwt_required()
 def get_telemetry(equipment_id: str) -> tuple[Response, int]:
     """
@@ -613,21 +604,20 @@ def get_telemetry(equipment_id: str) -> tuple[Response, int]:
     if auth_err is not None or equipment is None:
         return auth_err or (jsonify({"error": "Equipment not found"}), 404)
 
-    page, limit = _parse_telemetry_pagination(request.args)
+    query_params, q_err = validate_query_model(TelemetryQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
 
-    interval = _parse_telemetry_interval(request.args.get("interval", "raw"))
-    if interval is None:
-        return jsonify({"error": f"Invalid interval. Must be one of: {', '.join(VALID_INTERVALS)}"}), 400
+    page, limit = _parse_telemetry_pagination(query_params)
+    interval = query_params.interval or TelemetryInterval.RAW
 
-    cursor_data, token_err = _decode_telemetry_cursor(request.args.get("page_token"), interval)
+    cursor_data, token_err = _decode_telemetry_cursor(query_params.page_token, interval)
     if token_err:
         return token_err
 
-    start_dt, end_dt, date_err = _parse_telemetry_date_range(request.args)
+    start_dt, end_dt, date_err = _parse_telemetry_date_range(query_params.start_date, query_params.end_date)
     if date_err:
         return date_err
-
-    requested_fields = _parse_projection_fields(request.args.get("fields"))
 
     rows, total, next_page_token, query_err = _fetch_telemetry_rows(
         equipment.id, interval, start_dt, end_dt, page, limit, cursor_data
@@ -636,10 +626,12 @@ def get_telemetry(equipment_id: str) -> tuple[Response, int]:
         return query_err or (jsonify({"error": "Failed to fetch telemetry"}), 500)
 
     total_pages = math.ceil(total / limit) if total > 0 else 0
+    requested_fields = _parse_projection_fields(query_params.fields)
     if requested_fields is not None:
         rows = [{k: v for k, v in row.items() if k in requested_fields} for row in rows]
 
-    return jsonify(
+    return json_response(
+        TelemetryHistoryResponse,
         {
             "equipment_id": str(equipment.id),
             "serial": equipment.serial,
@@ -653,8 +645,9 @@ def get_telemetry(equipment_id: str) -> tuple[Response, int]:
                 "total": total,
                 "total_pages": total_pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 class _AggregatedTelemetryRow(Protocol):
@@ -973,6 +966,12 @@ def _stream_aggregated_telemetry_csv(
 
 
 @telemetry_bp.route("/equipments/<equipment_id>/telemetry/export", methods=["GET"])
+@openapi_meta(
+    summary="Export equipment telemetry as CSV",
+    tags=["Telemetry"],
+    query_params=TelemetryExportQuery,
+    responses={200: "text/csv"},
+)
 @jwt_required()
 def export_telemetry_csv(equipment_id: str) -> Response | tuple[Response, int]:
     """
@@ -984,9 +983,11 @@ def export_telemetry_csv(equipment_id: str) -> Response | tuple[Response, int]:
     if auth_err is not None or equipment is None:
         return auth_err or (jsonify({"error": "Equipment not found"}), 404)
 
-    interval = _parse_telemetry_interval(request.args.get("interval", "raw"))
-    if interval is None:
-        return jsonify({"error": f"Invalid interval. Must be one of: {', '.join(VALID_INTERVALS)}"}), 400
+    query_params, q_err = validate_query_model(TelemetryExportQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    interval = query_params.interval or TelemetryInterval.RAW
 
     now = utc_now()
     start_dt, end_dt, window_err = _parse_export_window(request.args, interval, now)
@@ -1011,6 +1012,12 @@ def export_telemetry_csv(equipment_id: str) -> Response | tuple[Response, int]:
 
 
 @telemetry_bp.route("/telemetry/realtime", methods=["GET"])
+@openapi_meta(
+    summary="Get real-time equipment telemetry",
+    tags=["Telemetry"],
+    query_params=TelemetryScopeQuery,
+    responses={200: RealtimeTelemetryListResponse},
+)
 @jwt_required()
 def get_realtime_telemetry() -> tuple[Response, int]:
     """
@@ -1022,34 +1029,16 @@ def get_realtime_telemetry() -> tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    company_id = request.args.get("company_id")
-    branch_id = request.args.get("branch_id")
-    equipment_ids_param = request.args.get("equipment_ids")
+    query_params, q_err = validate_query_model(TelemetryScopeQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
 
-    query = Equipment.query.filter(Equipment.is_active.is_(True))
-
-    if user.role != UserRole.GLOBAL_ADMIN:
-        query = query.filter(Equipment.company_id == user.company_id)
-        allowed_branches = get_allowed_branch_ids(user)
-        if allowed_branches is not None:
-            query = query.filter(Equipment.branch_id.in_(allowed_branches))
-    elif company_id:
-        query = query.filter(Equipment.company_id == company_id)
-
-    if branch_id:
-        query = query.filter(Equipment.branch_id == branch_id)
-
-    if equipment_ids_param:
-        ids = [eid.strip() for eid in equipment_ids_param.split(",") if eid.strip()]
-        if ids:
-            query = query.filter(Equipment.id.in_(ids))
-
-    equipments = query.order_by(Equipment.serial.asc()).all()
+    equipments = _query_accessible_active_equipments(user, query_params)
     now = utc_now()
 
     snapshots = []
     for eq in equipments:
-        cd = eq.current_data or {}
+        cd: Mapping[str, object] = eq.current_data or {}
         last_seen = ensure_utc(eq.last_seen_at)
         effective_status = (
             EquipmentStatus.OFFLINE.value
@@ -1073,7 +1062,7 @@ def get_realtime_telemetry() -> tuple[Response, int]:
             }
         )
 
-    return jsonify({"equipment": snapshots}), 200
+    return json_response(RealtimeTelemetryListResponse, {"equipment": snapshots}, 200)
 
 
 def _format_ptbr_decimal(value: float) -> str:
@@ -1081,11 +1070,11 @@ def _format_ptbr_decimal(value: float) -> str:
     return f"{value:.1f}".replace(".", ",")
 
 
-def _query_accessible_active_equipments(user: User, args: MultiDict[str, str]) -> list[Equipment]:
-    """Query active equipment scoped to user tenant/branch RBAC and optional query filters."""
-    company_id = args.get("company_id")
-    branch_id = args.get("branch_id")
-    equipment_ids_param = args.get("equipment_ids")
+def _query_accessible_active_equipments(user: User, query_params: TelemetryScopeQuery) -> list[Equipment]:
+    """Query active equipment scoped to user tenant/branch RBAC and validated query filters."""
+    company_id = query_params.company_id
+    branch_id = query_params.branch_id
+    equipment_ids_param = query_params.equipment_ids
 
     query = Equipment.query.filter(Equipment.is_active.is_(True))
 
@@ -1220,6 +1209,12 @@ def _resolve_equipment_threshold(eq: Equipment, temp_rules: list[AlertRule]) -> 
 
 
 @telemetry_bp.route("/telemetry/overview", methods=["GET"])
+@openapi_meta(
+    summary="Get 24h telemetry sparklines and thresholds",
+    tags=["Telemetry"],
+    query_params=TelemetryScopeQuery,
+    responses={200: TelemetryOverviewResponse},
+)
 @jwt_required()
 def get_telemetry_overview() -> tuple[Response, int]:
     """
@@ -1232,9 +1227,13 @@ def get_telemetry_overview() -> tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    equipments = _query_accessible_active_equipments(user, request.args)
+    query_params, q_err = validate_query_model(TelemetryScopeQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    equipments = _query_accessible_active_equipments(user, query_params)
     if not equipments:
-        return jsonify({"overview": {}}), 200
+        return json_response(TelemetryOverviewResponse, {"overview": {}}, 200)
 
     eq_uuids = [eq.id for eq in equipments]
     company_uuids = list({eq.company_id for eq in equipments if eq.company_id is not None})
@@ -1251,4 +1250,4 @@ def get_telemetry_overview() -> tuple[Response, int]:
         for eq in equipments
     }
 
-    return jsonify({"overview": overview}), 200
+    return json_response(TelemetryOverviewResponse, {"overview": overview}, 200)

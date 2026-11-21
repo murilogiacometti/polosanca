@@ -48,20 +48,6 @@ const DURATION_PRESETS: Array<{ label: string; value: number }> = [
 
 const TEMPLATE_TOKENS = ['{serial}', '{rule_type}', '{value}', '{threshold}'];
 
-export interface AlertRuleRecord extends AlertRule {
-  scope_id?: string | null;
-  message_template?: string | null;
-}
-
-interface AlertRuleCreateRequest extends CreateAlertRulePayload {
-  scope_id?: string | null;
-  message_template?: string;
-}
-
-interface AlertRuleUpdateRequest extends UpdateAlertRulePayload {
-  message_template?: string;
-}
-
 interface AlertRuleFormValues {
   name: string;
   description?: string;
@@ -77,7 +63,7 @@ interface AlertRuleFormValues {
 }
 
 export interface AlertRuleModalFormProps {
-  rule?: AlertRuleRecord | null;
+  rule?: AlertRule | null;
   companies?: Company[];
   equipments?: Equipment[];
   defaultScope?: AlertScope;
@@ -114,7 +100,7 @@ function buildSamplePreview(params: {
 }
 
 function buildInitialFormValues(
-  rule: AlertRuleRecord | null,
+  rule: AlertRule | null,
   defaultScope: AlertScope,
   defaultScopeId?: string,
   fixedCompanyId?: string
@@ -139,7 +125,7 @@ function buildInitialFormValues(
     description: rule.description || '',
     rule_type: rule.rule_type || 'temperature_high',
     scope: rule.scope || defaultScope,
-    scope_id: rule.scope_id || rule.equipment_id || defaultScopeId,
+    scope_id: rule.scope_id || defaultScopeId,
     comparison_operator: rule.comparison_operator || '>',
     threshold_value: rule.threshold_value ?? 8,
     duration_seconds: rule.duration_seconds ?? 300,
@@ -152,8 +138,8 @@ function buildInitialFormValues(
 function buildUpdatePayload(
   values: AlertRuleFormValues,
   isNonNumeric: boolean
-): AlertRuleUpdateRequest {
-  const patchPayload: AlertRuleUpdateRequest = {
+): UpdateAlertRulePayload {
+  const patchPayload: UpdateAlertRulePayload = {
     name: values.name.trim(),
     description: values.description?.trim() || null,
     duration_seconds: Number(values.duration_seconds),
@@ -189,7 +175,7 @@ function buildCreatePayload(params: {
   defaultScope: AlertScope;
   defaultScopeId?: string;
   fixedCompanyId?: string;
-}): AlertRuleCreateRequest {
+}): CreateAlertRulePayload {
   const { values, isNonNumeric, lockScope, defaultScope, defaultScopeId, fixedCompanyId } = params;
   const effectiveScope: AlertScope = lockScope ? defaultScope : values.scope;
   const effectiveScopeId = resolveCreateScopeId({

@@ -13,21 +13,6 @@ import type {
 } from '../../types/models';
 import { EQUIPMENT_TYPE_LABELS, extractApiError } from '../../utils/formatters';
 
-export interface EquipmentRecord extends Equipment {
-  manufacturer?: string | null;
-  installed_at?: string | null;
-}
-
-interface EquipmentCreatePayload extends CreateEquipmentPayload {
-  manufacturer?: string;
-  installed_at?: string;
-}
-
-interface EquipmentUpdatePayload extends UpdateEquipmentPayload {
-  manufacturer?: string | null;
-  installed_at?: string | null;
-}
-
 interface EquipmentFormValues {
   company_id?: string;
   branch_id?: string;
@@ -42,7 +27,7 @@ export interface EquipmentFormModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (saved: Equipment, apiKey?: string | null) => void | Promise<void>;
-  equipment?: EquipmentRecord | null;
+  equipment?: Equipment | null;
   branches?: Branch[];
   companies?: Company[];
   isGlobalAdmin?: boolean;
@@ -53,7 +38,7 @@ export interface EquipmentFormModalProps {
 function buildEquipmentUpdatePayload(
   values: EquipmentFormValues,
   resolvedBranchId: string | undefined
-): EquipmentUpdatePayload {
+): UpdateEquipmentPayload {
   return {
     branch_id: resolvedBranchId,
     type: values.type,
@@ -67,8 +52,8 @@ function buildEquipmentCreatePayload(
   values: EquipmentFormValues,
   resolvedBranchId: string | undefined,
   isGlobalAdmin: boolean
-): EquipmentCreatePayload {
-  const payload: EquipmentCreatePayload = {
+): CreateEquipmentPayload {
+  const payload: CreateEquipmentPayload = {
     serial: values.serial.trim(),
     type: values.type,
     branch_id: resolvedBranchId || '',
@@ -80,23 +65,6 @@ function buildEquipmentCreatePayload(
     payload.company_id = values.company_id;
   }
   return payload;
-}
-
-function resolveCreatedEquipment(
-  created: Awaited<ReturnType<typeof createEquipment>>,
-  payload: EquipmentCreatePayload
-): Equipment {
-  if (created.equipment) {
-    return created.equipment;
-  }
-  return {
-    ...created,
-    id: created.id ?? '',
-    serial: created.serial ?? payload.serial,
-    type: created.type ?? payload.type,
-    company_id: created.company_id ?? payload.company_id ?? '',
-    branch_id: created.branch_id ?? payload.branch_id,
-  };
 }
 
 export default function EquipmentFormModal({
@@ -187,9 +155,8 @@ export default function EquipmentFormModal({
       } else {
         const payload = buildEquipmentCreatePayload(values, resolvedBranchId, isGlobalAdmin);
         const created = await createEquipment(payload);
-        const savedEquipment = resolveCreatedEquipment(created, payload);
         message.success('Equipamento cadastrado com sucesso!');
-        await onSuccess(savedEquipment, created.api_key);
+        await onSuccess(created, created.api_key);
       }
     } catch (err) {
       message.error(extractApiError(err, 'Não foi possível salvar o equipamento.'));

@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app import db
+from app.enums import AuditEntityType
 from app.models import (
     Branch,
     Equipment,
@@ -23,11 +24,20 @@ from app.models import (
     UserRole,
 )
 from app.schemas import (
-    EquipmentCreatePayload,
-    EquipmentCreateSchema,
-    EquipmentUpdatePayload,
-    EquipmentUpdateSchema,
-    validate_request_schema,
+    Equipment as EquipmentResponse,
+)
+from app.schemas import (
+    EquipmentAlertRulesResponse,
+    EquipmentCreated,
+    EquipmentCreateRequest,
+    EquipmentsListResponse,
+    EquipmentsQuery,
+    EquipmentUpdateRequest,
+    RotateApiKeyResponse,
+    json_response,
+    openapi_meta,
+    validate_query_model,
+    validate_request_model,
 )
 from app.services import serialize_equipment_alert_rules
 from app.utils import (
@@ -42,8 +52,6 @@ from app.utils import (
 )
 
 equipments_bp = Blueprint("equipments", __name__)
-_equipment_create_schema = EquipmentCreateSchema()
-_equipment_update_schema = EquipmentUpdateSchema()
 _Q = TypeVar("_Q", bound=Query)
 
 
@@ -60,29 +68,29 @@ def _serialize_equipment(equipment: Equipment, now: datetime | None = None) -> d
 def _apply_equipment_list_filters(
     query: _Q,
     branch_id: str | None,
-    eq_type: str | None,
-    status: str | None,
+    eq_type: EquipmentType | None,
+    status: EquipmentStatus | None,
     search: str | None,
-) -> tuple[_Q | None, tuple[Response, int] | None]:
+) -> _Q:
     """Apply optional branch, type, status, and serial search filters to an equipment query."""
     if branch_id:
         query = query.filter(Equipment.branch_id == branch_id)
-    if eq_type:
-        try:
-            query = query.filter(Equipment.type == EquipmentType(eq_type))
-        except ValueError:
-            return None, (jsonify({"error": "Invalid equipment type filter"}), 400)
-    if status:
-        try:
-            query = query.filter(Equipment.status == EquipmentStatus(status))
-        except ValueError:
-            return None, (jsonify({"error": "Invalid status filter"}), 400)
+    if eq_type is not None:
+        query = query.filter(Equipment.type == eq_type)
+    if status is not None:
+        query = query.filter(Equipment.status == status)
     if search:
         query = query.filter(Equipment.serial.ilike(f"%{search.strip()}%"))
-    return query, None
+    return query
 
 
 @equipments_bp.route("", methods=["GET"])
+@openapi_meta(
+    summary="List equipments",
+    tags=["Equipments"],
+    query_params=EquipmentsQuery,
+    responses={200: EquipmentsListResponse},
+)
 @jwt_required()
 def get_equipments() -> tuple[Response, int]:
     """Get equipment list in a single query using joinedload(branch) + current_data JSONB."""
@@ -91,12 +99,13 @@ def get_equipments() -> tuple[Response, int]:
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    page, limit = clamp_pagination(
-        request.args.get("page", 1, type=int),
-        request.args.get("limit", 20, type=int),
-    )
-    company_id = request.args.get("company_id")
-    include_inactive = request.args.get("include_inactive", "false").lower() in ("true", "1", "yes")
+    query_params, q_err = validate_query_model(EquipmentsQuery, request.args)
+    if q_err or query_params is None:
+        return jsonify({"error": q_err or "Invalid query parameters"}), 400
+
+    page, limit = clamp_pagination(query_params.page, query_params.limit)
+    company_id = query_params.company_id
+    include_inactive = bool(query_params.include_inactive)
 
     query = Equipment.query.options(joinedload(Equipment.branch))
 
@@ -112,23 +121,20 @@ def get_equipments() -> tuple[Response, int]:
         if allowed_branches is not None:
             query = query.filter(Equipment.branch_id.in_(allowed_branches))
 
-    filtered_query, filter_err = _apply_equipment_list_filters(
+    filtered_query = _apply_equipment_list_filters(
         query,
-        request.args.get("branch_id"),
-        request.args.get("type"),
-        request.args.get("status"),
-        request.args.get("search"),
+        query_params.branch_id,
+        query_params.type,
+        query_params.status,
+        query_params.search,
     )
-    if filter_err:
-        return filter_err
-    if filtered_query is None:
-        return jsonify({"error": "Invalid filter"}), 400
 
     query = filtered_query.order_by(Equipment.created_at.desc())
     pagination = query.paginate(page=page, per_page=limit, error_out=False)
     now = utc_now()
 
-    return jsonify(
+    return json_response(
+        EquipmentsListResponse,
         {
             "equipment": [_serialize_equipment(e, now=now) for e in pagination.items],
             "pagination": {
@@ -137,11 +143,17 @@ def get_equipments() -> tuple[Response, int]:
                 "total": pagination.total,
                 "total_pages": pagination.pages,
             },
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @equipments_bp.route("/<equipment_id>", methods=["GET"])
+@openapi_meta(
+    summary="Get equipment details",
+    tags=["Equipments"],
+    responses={200: EquipmentResponse},
+)
 @jwt_required()
 def get_equipment(equipment_id: str) -> tuple[Response, int]:
     """Get a specific equipment with tenant and branch-level access enforcement."""
@@ -161,10 +173,15 @@ def get_equipment(equipment_id: str) -> tuple[Response, int]:
         if allowed_branches is not None and equipment.branch_id not in allowed_branches:
             return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(_serialize_equipment(equipment)), 200
+    return json_response(EquipmentResponse, _serialize_equipment(equipment), 200)
 
 
 @equipments_bp.route("/<equipment_id>/alert-rules", methods=["GET"])
+@openapi_meta(
+    summary="List alert rules applicable to equipment",
+    tags=["Equipments"],
+    responses={200: EquipmentAlertRulesResponse},
+)
 @jwt_required()
 def get_equipment_alert_rules(equipment_id: str) -> tuple[Response, int]:
     """
@@ -188,19 +205,21 @@ def get_equipment_alert_rules(equipment_id: str) -> tuple[Response, int]:
         if allowed_branches is not None and equipment.branch_id not in allowed_branches:
             return jsonify({"error": "Forbidden"}), 403
 
-    return jsonify(
+    return json_response(
+        EquipmentAlertRulesResponse,
         {
             "equipment_id": str(equipment.id),
             "applicable_rules": serialize_equipment_alert_rules(equipment),
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 def _resolve_target_branch_for_create(
-    user: User, data: EquipmentCreatePayload
+    user: User, data: EquipmentCreateRequest
 ) -> tuple[Branch | None, tuple[Response, int] | None]:
     """Load and authorize the target branch for equipment creation."""
-    branch = db.session.get(Branch, data["branch_id"])
+    branch = db.session.get(Branch, data.branch_id)
     if not branch:
         return None, (jsonify({"error": "Branch not found"}), 404)
 
@@ -208,7 +227,7 @@ def _resolve_target_branch_for_create(
         if branch.company_id != user.company_id:
             return None, (jsonify({"error": "Forbidden"}), 403)
     else:
-        company_id = data.get("company_id")
+        company_id = data.company_id
         if company_id and company_id != str(branch.company_id):
             return None, (jsonify({"error": "Branch does not belong to the specified company"}), 400)
 
@@ -216,6 +235,12 @@ def _resolve_target_branch_for_create(
 
 
 @equipments_bp.route("", methods=["POST"])
+@openapi_meta(
+    summary="Register new equipment",
+    tags=["Equipments"],
+    request_body=EquipmentCreateRequest,
+    responses={201: EquipmentCreated},
+)
 @jwt_required()
 def create_equipment() -> tuple[Response, int]:
     """Register new equipment, derive company_id from branch, and store SHA-256 hashed API key."""
@@ -228,12 +253,12 @@ def create_equipment() -> tuple[Response, int]:
         return jsonify({"error": "Forbidden"}), 403
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_equipment_create_schema, raw_data)
+    data, val_err = validate_request_model(EquipmentCreateRequest, raw_data)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
 
-    serial = data["serial"]
-    eq_type = EquipmentType(data["type"])
+    serial = data.serial
+    eq_type = EquipmentType(data.type)
 
     branch, branch_err = _resolve_target_branch_for_create(user, data)
     if branch_err:
@@ -245,7 +270,7 @@ def create_equipment() -> tuple[Response, int]:
         return jsonify({"error": "Equipment with this serial number already exists"}), 400
 
     installed_at = None
-    raw_installed_at = data.get("installed_at")
+    raw_installed_at = data.installed_at
     if raw_installed_at:
         try:
             installed_at = parse_iso_datetime(raw_installed_at)
@@ -259,8 +284,8 @@ def create_equipment() -> tuple[Response, int]:
         type=eq_type,
         branch_id=branch.id,
         company_id=branch.company_id,
-        manufacturer=data.get("manufacturer"),
-        model=data.get("model"),
+        manufacturer=data.manufacturer,
+        model=data.model,
         installed_at=installed_at,
         api_key=hash_api_key(plaintext_api_key),
     )
@@ -271,7 +296,7 @@ def create_equipment() -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="create_equipment",
-            entity_type="equipment",
+            entity_type=AuditEntityType.EQUIPMENT,
             entity_id=equipment.id,
             changes={"serial": equipment.serial, "branch_id": str(equipment.branch_id)},
         )
@@ -285,7 +310,7 @@ def create_equipment() -> tuple[Response, int]:
     result = equipment.to_dict(branch_name=branch.name)
     result["api_key"] = plaintext_api_key  # Plaintext returned only once on creation
 
-    return jsonify(result), 201
+    return json_response(EquipmentCreated, result, 201)
 
 
 def _load_mutable_equipment(
@@ -325,21 +350,21 @@ def _apply_equipment_branch_update(
 
 
 def _apply_equipment_metadata_updates(
-    equipment: Equipment, data: EquipmentUpdatePayload, changes: dict[str, object]
+    equipment: Equipment, data: EquipmentUpdateRequest, changes: dict[str, object]
 ) -> tuple[Response, int] | None:
     """Apply manufacturer, model, installed_at, and is_active updates to an equipment record."""
-    if "manufacturer" in data and data["manufacturer"] != equipment.manufacturer:
-        manufacturer = data["manufacturer"]
+    if "manufacturer" in data.model_fields_set and data.manufacturer != equipment.manufacturer:
+        manufacturer = data.manufacturer
         changes["manufacturer"] = {"old": equipment.manufacturer, "new": manufacturer}
         equipment.manufacturer = manufacturer
 
-    if "model" in data and data["model"] != equipment.model:
-        model_val = data["model"]
+    if "model" in data.model_fields_set and data.model != equipment.model:
+        model_val = data.model
         changes["model"] = {"old": equipment.model, "new": model_val}
         equipment.model = model_val
 
-    if "installed_at" in data:
-        raw_installed_at = data["installed_at"]
+    if "installed_at" in data.model_fields_set:
+        raw_installed_at = data.installed_at
         if raw_installed_at is None:
             equipment.installed_at = None
         else:
@@ -348,14 +373,20 @@ def _apply_equipment_metadata_updates(
             except ValueError:
                 return jsonify({"error": "Invalid installed_at timestamp"}), 400
 
-    if "is_active" in data and data["is_active"] != equipment.is_active:
-        changes["is_active"] = {"old": equipment.is_active, "new": data["is_active"]}
-        equipment.is_active = data["is_active"]
+    if "is_active" in data.model_fields_set and data.is_active is not None and data.is_active != equipment.is_active:
+        changes["is_active"] = {"old": equipment.is_active, "new": data.is_active}
+        equipment.is_active = data.is_active
 
     return None
 
 
 @equipments_bp.route("/<equipment_id>", methods=["PATCH"])
+@openapi_meta(
+    summary="Update equipment",
+    tags=["Equipments"],
+    request_body=EquipmentUpdateRequest,
+    responses={200: EquipmentResponse},
+)
 @jwt_required()
 def update_equipment(equipment_id: str) -> tuple[Response, int]:
     """Update equipment metadata or reassign branch within the same company."""
@@ -366,19 +397,19 @@ def update_equipment(equipment_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Equipment not found"}), 404
 
     raw_data = request.get_json(silent=True)
-    data, val_err = validate_request_schema(_equipment_update_schema, raw_data, allow_empty=True)
+    data, val_err = validate_request_model(EquipmentUpdateRequest, raw_data, allow_empty=True)
     if val_err or data is None:
         return jsonify({"error": val_err or "Invalid request payload"}), 400
     changes: dict[str, object] = {}
 
-    if "type" in data:
-        new_type = EquipmentType(data["type"])
+    if "type" in data.model_fields_set and data.type is not None:
+        new_type = EquipmentType(data.type)
         if new_type != equipment.type:
             changes["type"] = {"old": equipment.type.value, "new": new_type.value}
             equipment.type = new_type
 
-    if "branch_id" in data:
-        branch_err = _apply_equipment_branch_update(equipment, data["branch_id"], changes)
+    if "branch_id" in data.model_fields_set and data.branch_id is not None:
+        branch_err = _apply_equipment_branch_update(equipment, data.branch_id, changes)
         if branch_err:
             return branch_err
 
@@ -390,7 +421,7 @@ def update_equipment(equipment_id: str) -> tuple[Response, int]:
         record_audit_log(
             user_id=user.id,
             action="update_equipment",
-            entity_type="equipment",
+            entity_type=AuditEntityType.EQUIPMENT,
             entity_id=equipment.id,
             changes=changes or None,
         )
@@ -400,10 +431,15 @@ def update_equipment(equipment_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Equipment update violated database integrity constraints"}), 400
 
     db.session.refresh(equipment)
-    return jsonify(_serialize_equipment(equipment)), 200
+    return json_response(EquipmentResponse, _serialize_equipment(equipment), 200)
 
 
 @equipments_bp.route("/<equipment_id>/rotate-api-key", methods=["POST"])
+@openapi_meta(
+    summary="Rotate equipment API key",
+    tags=["Equipments"],
+    responses={200: RotateApiKeyResponse},
+)
 @jwt_required()
 def rotate_equipment_api_key(equipment_id: str) -> tuple[Response, int]:
     """Rotate equipment API key and store only its SHA-256 hash."""
@@ -427,20 +463,27 @@ def rotate_equipment_api_key(equipment_id: str) -> tuple[Response, int]:
     record_audit_log(
         user_id=user.id,
         action="rotate_equipment_api_key",
-        entity_type="equipment",
+        entity_type=AuditEntityType.EQUIPMENT,
         entity_id=equipment.id,
     )
     db.session.commit()
 
-    return jsonify(
+    return json_response(
+        RotateApiKeyResponse,
         {
             "equipment_id": str(equipment.id),
             "api_key": plaintext_api_key,
-        }
-    ), 200
+        },
+        200,
+    )
 
 
 @equipments_bp.route("/<equipment_id>", methods=["DELETE"])
+@openapi_meta(
+    summary="Deactivate equipment",
+    tags=["Equipments"],
+    responses={204: None},
+)
 @jwt_required()
 def delete_equipment(equipment_id: str) -> tuple[Response | str, int]:
     """Soft-deactivate equipment (is_active = False) to preserve 100% of telemetry, alert, and maintenance history."""
@@ -464,7 +507,7 @@ def delete_equipment(equipment_id: str) -> tuple[Response | str, int]:
     record_audit_log(
         user_id=user.id,
         action="deactivate_equipment",
-        entity_type="equipment",
+        entity_type=AuditEntityType.EQUIPMENT,
         entity_id=equipment.id,
         changes={"is_active": {"old": old_active, "new": False}},
     )

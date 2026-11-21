@@ -19,10 +19,11 @@ import { getAuditLogs, getUsers, type GetAuditLogsParams } from '../api';
 import WorkspaceSkeleton from '../components/Common/WorkspaceSkeleton';
 import { PageHeader, StatusPill } from '../components/ui';
 import { queryKeys } from '../query/queryClient';
-import type { AuditLogItem } from '../types/models';
+import type { AuditEntityType, AuditLogItem } from '../types/models';
 import {
   AUDIT_ACTION_LABELS,
   AUDIT_ENTITY_LABELS,
+  AUDIT_ENTITY_OPTIONS,
   formatDateTimePtBR,
 } from '../utils/formatters';
 
@@ -146,7 +147,7 @@ export interface AuditLogsPageProps {
 }
 
 export default function AuditLogsPage({ headerNav = null }: AuditLogsPageProps) {
-  const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>(undefined);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<AuditEntityType | undefined>(undefined);
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
@@ -291,16 +292,13 @@ export default function AuditLogsPage({ headerNav = null }: AuditLogsPageProps) 
 
       <Row gutter={[10, 10]}>
         <Col xs={24} sm={12} lg={5}>
-          <Select<string>
+          <Select<AuditEntityType>
             allowClear
             style={{ width: '100%' }}
             placeholder="Tipo de entidade"
             value={entityTypeFilter}
             onChange={(val) => resetCursorAndApply(() => setEntityTypeFilter(val))}
-            options={Object.entries(AUDIT_ENTITY_LABELS).map(([value, label]) => ({
-              value,
-              label,
-            }))}
+            options={AUDIT_ENTITY_OPTIONS}
           />
         </Col>
 
