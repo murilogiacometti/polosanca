@@ -2,8 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, test } from '@playwright/test';
 import { installMockApi, loginViaUi, MOCK_IDS } from './fixtures/mockApi';
 
-const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const BLOCKING_IMPACTS = new Set(['critical', 'serious']);
+const MIN_INTERACTIVE_TARGET_PX = 24;
+const MIN_PRIMARY_BUTTON_PX = 36;
 
 async function assertMobileLayoutAndA11y(page: Page, screenLabel: string): Promise<void> {
   // Wait for any finite enter/fade transitions (e.g. .ps-view-enter) to settle so
@@ -54,7 +56,51 @@ async function assertMobileLayoutAndA11y(page: Page, screenLabel: string): Promi
 
   expect(
     blocking,
-    `${screenLabel}: WCAG 2.1 AA serious/critical violations:\n${JSON.stringify(summary, null, 2)}`
+    `${screenLabel}: WCAG 2.2 AA serious/critical violations:\n${JSON.stringify(summary, null, 2)}`
+  ).toEqual([]);
+
+  // 3. Touch-target size sweep across visible buttons (WCAG 2.2 SC 2.5.8 >= 24×24px floor;
+  //    header/primary controls >= 36×36px)
+  const undersized = await page.evaluate(
+    ({ minFloor, minPrimary }) => {
+      const issues: Array<{ label: string; width: number; height: number; required: number }> = [];
+      const buttons = Array.from(document.querySelectorAll('button'));
+      for (const btn of buttons) {
+        if (btn.disabled || btn.classList.contains('ps-card-stretch-btn')) continue;
+        const style = window.getComputedStyle(btn);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+          continue;
+        }
+        const rect = btn.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        // Skip buttons scrolled horizontally outside a scroll container or below/above viewport
+        if (rect.right < 0 || rect.left > window.innerWidth) continue;
+
+        const isHeaderControl = Boolean(btn.closest('header'));
+        const isIconOnly = (btn.textContent || '').trim().length === 0;
+        const required = isHeaderControl || isIconOnly ? minPrimary : minFloor;
+
+        if (rect.width < required || rect.height < required) {
+          const label =
+            btn.getAttribute('aria-label') ||
+            (btn.textContent || '').trim().slice(0, 40) ||
+            btn.className;
+          issues.push({
+            label,
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            required,
+          });
+        }
+      }
+      return issues;
+    },
+    { minFloor: MIN_INTERACTIVE_TARGET_PX, minPrimary: MIN_PRIMARY_BUTTON_PX }
+  );
+
+  expect(
+    undersized,
+    `${screenLabel}: undersized mobile touch targets:\n${JSON.stringify(undersized, null, 2)}`
   ).toEqual([]);
 }
 
@@ -67,8 +113,8 @@ async function assertMobileHeaderAccessible(page: Page, screenLabel: string): Pr
   if (box) {
     expect(box.x, `${screenLabel}: hamburger menu clipped off left edge`).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width, `${screenLabel}: hamburger menu clipped off right edge`).toBeLessThanOrEqual(390);
-    expect(box.width, `${screenLabel}: hamburger touch target width >= 32px`).toBeGreaterThanOrEqual(32);
-    expect(box.height, `${screenLabel}: hamburger touch target height >= 32px`).toBeGreaterThanOrEqual(32);
+    expect(box.width, `${screenLabel}: hamburger touch target width >= 36px`).toBeGreaterThanOrEqual(36);
+    expect(box.height, `${screenLabel}: hamburger touch target height >= 36px`).toBeGreaterThanOrEqual(36);
   }
 }
 

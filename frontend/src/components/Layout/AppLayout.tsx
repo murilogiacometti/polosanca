@@ -370,7 +370,7 @@ function AppTopHeader({
             icon={<MenuOutlined />}
             onClick={() => setMobileNavOpen(true)}
             aria-label="Abrir navegação"
-            style={{ flexShrink: 0 }}
+            style={{ flexShrink: 0, width: 38, height: 38 }}
           />
         )}
 
@@ -437,7 +437,9 @@ function AppTopHeader({
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: isCompactMobile ? '7px 9px' : '5px 9px 5px 11px',
+              width: isCompactMobile ? 36 : undefined,
+              height: isCompactMobile ? 36 : undefined,
+              padding: isCompactMobile ? 0 : '5px 9px 5px 11px',
               borderRadius: 999,
               border: '1px solid var(--ps-border)',
               background: 'var(--ps-chip-bg)',

@@ -122,7 +122,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0;
+  padding: 4px 0;
+  min-height: 28px;
   margin-bottom: 4px;
   border: none;
   background: transparent;
@@ -320,6 +321,10 @@ body {
 .ps-card-stretch-content {
   position: relative;
   z-index: 1;
+}
+
+.ps-card-stretch-content button {
+  min-height: 28px;
 }
 
 /* Responsive Multi-Column Grids */
@@ -551,6 +556,27 @@ body {
     padding: 4px 8px !important;
     font-size: 11px !important;
     max-width: 152px;
+    min-height: 36px;
+  }
+
+  .ant-layout-header button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  .ant-btn-icon-only {
+    min-width: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .ps-scope-crumb-ancestor,
+  .ant-layout-header .anticon-right {
+    display: none !important;
+  }
+
+  .ps-scope-select {
+    min-width: 0 !important;
+    max-width: 150px !important;
   }
 
   .ps-swimlane-row {

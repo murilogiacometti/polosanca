@@ -512,7 +512,8 @@ function HeroMaintenanceCard({
           style={{
             background: 'none',
             border: 'none',
-            padding: 0,
+            padding: '4px 0',
+            minHeight: 28,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,

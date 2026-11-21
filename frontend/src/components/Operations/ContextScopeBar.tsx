@@ -313,6 +313,7 @@ function ScopeBreadcrumbTrail({
       {isGlobalAdmin && (
         <button
           type="button"
+          className={zoomDepth > 0 ? 'ps-scope-crumb-ancestor' : undefined}
           onClick={onZoomRoot}
           style={zoomDepth === 0 ? ACTIVE_PILL_STYLE : ANCESTOR_BTN_STYLE}
         >
@@ -328,33 +329,45 @@ function ScopeBreadcrumbTrail({
 
       {/* Nível 1: Empresa Atual (exibido apenas quando uma empresa está aberta) */}
       {currentCompany && (
-        <CompanyCrumb
-          currentCompany={currentCompany}
-          isGlobalAdmin={Boolean(isGlobalAdmin)}
-          zoomDepth={zoomDepth}
-          onSelectCompany={onSelectCompany}
-        />
+        <span
+          className={zoomDepth > 1 ? 'ps-scope-crumb-ancestor' : undefined}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
+        >
+          <CompanyCrumb
+            currentCompany={currentCompany}
+            isGlobalAdmin={Boolean(isGlobalAdmin)}
+            zoomDepth={zoomDepth}
+            onSelectCompany={onSelectCompany}
+          />
+        </span>
       )}
 
       {/* Nível 2: Filial Atual (exibido quando uma filial está aberta em empresa multi-filial) */}
       {!hideBranchTier && currentCompany && currentBranch && (
-        <BranchCrumb
-          currentBranch={currentBranch}
-          branches={branches ?? []}
-          zoomDepth={zoomDepth}
-          onSelectBranch={onSelectBranch}
-          onOpenChange={onBranchSelectOpenChange}
-        />
+        <span
+          className={zoomDepth > 2 ? 'ps-scope-crumb-ancestor' : undefined}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
+        >
+          <BranchCrumb
+            currentBranch={currentBranch}
+            branches={branches ?? []}
+            zoomDepth={zoomDepth}
+            onSelectBranch={onSelectBranch}
+            onOpenChange={onBranchSelectOpenChange}
+          />
+        </span>
       )}
 
       {/* Nível 3: Equipamento Atual (exibido apenas na tela de detalhe do equipamento) */}
       {currentEquipment && (
-        <EquipmentCrumb
-          currentEquipment={currentEquipment}
-          equipments={equipments ?? []}
-          onSelectEquipment={onSelectEquipment}
-          onOpenChange={onEqSelectOpenChange}
-        />
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <EquipmentCrumb
+            currentEquipment={currentEquipment}
+            equipments={equipments ?? []}
+            onSelectEquipment={onSelectEquipment}
+            onOpenChange={onEqSelectOpenChange}
+          />
+        </span>
       )}
 
       {/* Escopo restrito por filial */}

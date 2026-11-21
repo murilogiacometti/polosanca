@@ -153,7 +153,10 @@ export default function HealthRollupBar({
                     ...commonStyle,
                     border: 'none',
                     background: 'transparent',
-                    padding: 0,
+                    padding: '4px 6px',
+                    margin: '-4px -6px',
+                    minHeight: 28,
+                    borderRadius: 6,
                     cursor: 'pointer',
                   }}
                 >
