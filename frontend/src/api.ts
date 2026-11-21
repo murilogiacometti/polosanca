@@ -30,7 +30,9 @@ declare module 'axios' {
 export const API_URL: string =
   typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL
-    : 'http://localhost:5000/v1';
+    : import.meta.env.DEV
+      ? 'http://localhost:5000/v1'
+      : '/v1';
 
 const toRejectionError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(typeof err === 'string' ? err : 'Erro na requisição');
