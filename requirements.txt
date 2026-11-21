@@ -37,4 +37,4 @@ mypy==1.7.1
 
 # Production Server
 gunicorn==22.0.0
-gevent==24.2.1
+gevent==26.9.0
