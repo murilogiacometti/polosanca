@@ -456,28 +456,30 @@ function EquipmentHistoryCard({
     <Card>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div className="ps-toolbar-row">
-          <Segmented<HistorySubView>
-            className="ps-pill-switcher"
-            value={historySubView}
-            onChange={onHistorySubViewChange}
-            options={[
-              {
-                value: 'alerts',
-                icon: <AlertOutlined />,
-                label: `Alertas (${equipmentAlerts.length})`,
-              },
-              {
-                value: 'maintenance',
-                icon: <ToolOutlined />,
-                label: `Manutenções (${maintenanceRecords.length})`,
-              },
-              {
-                value: 'readings',
-                icon: <HistoryOutlined />,
-                label: `Leituras (${telemetryRows.length})`,
-              },
-            ]}
-          />
+          <div className="ps-segmented-scroll">
+            <Segmented<HistorySubView>
+              className="ps-pill-switcher"
+              value={historySubView}
+              onChange={onHistorySubViewChange}
+              options={[
+                {
+                  value: 'alerts',
+                  icon: <AlertOutlined />,
+                  label: `Alertas (${equipmentAlerts.length})`,
+                },
+                {
+                  value: 'maintenance',
+                  icon: <ToolOutlined />,
+                  label: `Manutenções (${maintenanceRecords.length})`,
+                },
+                {
+                  value: 'readings',
+                  icon: <HistoryOutlined />,
+                  label: `Leituras (${telemetryRows.length})`,
+                },
+              ]}
+            />
+          </div>
 
           {historySubView === 'maintenance' && canWriteOperations ? (
             <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onOpenNewMaintenance}>

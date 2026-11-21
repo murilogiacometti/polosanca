@@ -203,14 +203,7 @@ function SwimlaneTrackRow({
   const IconComponent = track.Icon;
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '148px 1fr 46px',
-        alignItems: 'center',
-        gap: 10,
-      }}
-    >
+    <div className="ps-swimlane-row">
       <div
         style={{
           fontSize: 12,
@@ -220,10 +213,13 @@ function SwimlaneTrackRow({
           alignItems: 'center',
           gap: 7,
           whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          minWidth: 0,
         }}
       >
         <IconComponent style={{ fontSize: 13, color: track.color, flexShrink: 0 }} />
-        <span>{track.label}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.label}</span>
       </div>
 
       <div
@@ -418,10 +414,8 @@ export default function DutyCycleSwimlane({
         ))}
 
         <div
+          className="ps-swimlane-row"
           style={{
-            display: 'grid',
-            gridTemplateColumns: '148px 1fr 46px',
-            gap: 10,
             marginTop: 2,
           }}
         >
@@ -431,13 +425,15 @@ export default function DutyCycleSwimlane({
             style={{
               display: 'flex',
               justifyContent: 'space-between',
+              gap: 6,
               fontSize: 10.5,
               color: 'var(--ps-text-secondary)',
+              minWidth: 0,
             }}
           >
             <span>{firstTs}</span>
-            {data.length >= 6 && <span>{q1Ts}</span>}
-            {data.length >= 4 && <span>{q2Ts}</span>}
+            {data.length >= 6 && <span className="ps-swimlane-mid-tick">{q1Ts}</span>}
+            {data.length >= 4 && <span className="ps-swimlane-mid-tick">{q2Ts}</span>}
             <span>{lastTs}</span>
           </div>
           <span />

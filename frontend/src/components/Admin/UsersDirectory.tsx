@@ -617,6 +617,7 @@ function buildUsersColumns({
             title: 'Empresa',
             dataIndex: 'company_id',
             key: 'company_id',
+            width: 175,
             render: (cid: string | null | undefined) =>
               cid ? (
                 companyNameMap[cid] || cid
@@ -656,6 +657,7 @@ function buildUsersColumns({
           {
             title: 'Acesso a Filiais',
             key: 'branch_access',
+            width: 195,
             render: (_: unknown, r: UserRecord) => {
               if (r.role === 'global_admin') {
                 return <StatusPill tone="neutral">Irrestrito (Global)</StatusPill>;
@@ -990,7 +992,7 @@ function UsersDirectoryView({
             rowKey="id"
             columns={columns}
             dataSource={visibleUsers}
-            scroll={{ x: 940 }}
+            scroll={{ x: 1210 }}
             pagination={{
               current: pagination.page,
               pageSize: pagination.limit,
@@ -1039,7 +1041,7 @@ function UsersDirectoryView({
               rowKey="id"
               columns={columns}
               dataSource={visibleUsers}
-              scroll={{ x: 1020 }}
+              scroll={{ x: 1210 }}
               pagination={{
                 current: pagination.page,
                 pageSize: pagination.limit,

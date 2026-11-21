@@ -206,12 +206,14 @@ function buildPrimaryMenuItems(params: {
 
 function HeaderUserProfileButton({
   isMobile,
+  isCompactMobile,
   profileMenuItems,
   profileMenuOpen,
   setProfileMenuOpen,
   identity,
 }: {
   isMobile: boolean;
+  isCompactMobile: boolean;
   profileMenuItems: MenuProps['items'];
   profileMenuOpen: boolean;
   setProfileMenuOpen: (open: boolean) => void;
@@ -229,18 +231,20 @@ function HeaderUserProfileButton({
     >
       <button
         type="button"
+        aria-label={primaryName ? `Conta de ${primaryName}` : 'Menu da conta'}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 9,
-          padding: '4px 12px 4px 5px',
+          gap: isCompactMobile ? 0 : 9,
+          padding: isCompactMobile ? 4 : '4px 12px 4px 5px',
           borderRadius: 999,
           border: '1px solid var(--ps-border)',
           background: 'var(--ps-chip-bg)',
           color: 'var(--ps-text-primary)',
           cursor: 'pointer',
           textAlign: 'left',
-          maxWidth: isMobile ? 165 : 250,
+          maxWidth: isCompactMobile ? 38 : isMobile ? 165 : 250,
+          flexShrink: 0,
         }}
       >
         <Avatar
@@ -255,40 +259,42 @@ function HeaderUserProfileButton({
         >
           {initials}
         </Avatar>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-            lineHeight: 1.2,
-          }}
-        >
-          <span
+        {!isCompactMobile && (
+          <div
             style={{
-              fontWeight: 600,
-              fontSize: 12,
-              color: 'var(--ps-text-primary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: 0,
+              lineHeight: 1.2,
             }}
           >
-            {primaryName}
-          </span>
-          {!isMobile && secondaryRole && (
             <span
               style={{
-                fontSize: 10.5,
-                color: 'var(--ps-text-secondary)',
+                fontWeight: 600,
+                fontSize: 12,
+                color: 'var(--ps-text-primary)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}
             >
-              {secondaryRole}
+              {primaryName}
             </span>
-          )}
-        </div>
+            {!isMobile && secondaryRole && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  color: 'var(--ps-text-secondary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {secondaryRole}
+              </span>
+            )}
+          </div>
+        )}
       </button>
     </Dropdown>
   );
@@ -296,6 +302,7 @@ function HeaderUserProfileButton({
 
 function AppTopHeader({
   isMobile,
+  isCompactMobile,
   isOperationsRoute,
   nonOperationTitle,
   user,
@@ -309,6 +316,7 @@ function AppTopHeader({
   setTopBarRightNode,
 }: {
   isMobile: boolean;
+  isCompactMobile: boolean;
   isOperationsRoute: boolean;
   nonOperationTitle: string;
   user: User | null;
@@ -333,22 +341,24 @@ function AppTopHeader({
         background: 'var(--ps-header-bg)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        padding: isMobile ? '0 12px' : '0 26px',
+        padding: isMobile ? '0 10px' : '0 26px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         borderBottom: '1px solid var(--ps-border)',
         height: 58,
         lineHeight: 'normal',
-        gap: 12,
+        gap: isCompactMobile ? 6 : 12,
         flexWrap: 'nowrap',
+        minWidth: 0,
+        overflow: 'hidden',
       }}
     >
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: isCompactMobile ? 4 : 8,
           minWidth: 0,
           flex: '1 1 auto',
           overflow: 'hidden',
@@ -376,11 +386,21 @@ function AppTopHeader({
           }}
         >
           {!isOperationsRoute && (
-            <Space size={8} wrap={false}>
-              <Text strong style={{ fontSize: 15, color: 'var(--ps-text-primary)' }}>
+            <Space size={8} wrap={false} style={{ minWidth: 0, overflow: 'hidden' }}>
+              <Text
+                strong
+                style={{
+                  fontSize: 15,
+                  color: 'var(--ps-text-primary)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: 'block',
+                }}
+              >
                 {nonOperationTitle}
               </Text>
-              {isRestrictedViewer && (
+              {isRestrictedViewer && !isCompactMobile && (
                 <Tag
                   icon={<LockOutlined />}
                   color="orange"
@@ -398,24 +418,26 @@ function AppTopHeader({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
+          gap: isCompactMobile ? 6 : 10,
           flexShrink: 0,
         }}
       >
         <div
           ref={setTopBarRightNode}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
         />
 
         <Tooltip title="Saltar direto para Empresa, Filial ou Câmara Fria (⌘K ou /)">
           <button
             type="button"
+            aria-label="Ir para Empresa, Filial ou Câmara Fria"
             onClick={() => setQuickJumpOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 8,
-              padding: '5px 9px 5px 11px',
+              padding: isCompactMobile ? '7px 9px' : '5px 9px 5px 11px',
               borderRadius: 999,
               border: '1px solid var(--ps-border)',
               background: 'var(--ps-chip-bg)',
@@ -423,30 +445,34 @@ function AppTopHeader({
               fontSize: 12,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
-            <SearchOutlined style={{ fontSize: 12.5 }} />
+            <SearchOutlined style={{ fontSize: 13 }} />
             {!isMobile && <span>Ir para...</span>}
-            <kbd
-              className="ps-mono"
-              style={{
-                fontSize: 10.5,
-                fontWeight: 600,
-                padding: '1px 5px',
-                borderRadius: 4,
-                border: '1px solid var(--ps-border)',
-                background: 'var(--ps-kbd-bg)',
-                color: 'var(--ps-text-secondary)',
-              }}
-            >
-              ⌘K
-            </kbd>
+            {!isCompactMobile && (
+              <kbd
+                className="ps-mono"
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  border: '1px solid var(--ps-border)',
+                  background: 'var(--ps-kbd-bg)',
+                  color: 'var(--ps-text-secondary)',
+                }}
+              >
+                ⌘K
+              </kbd>
+            )}
           </button>
         </Tooltip>
 
         {user && (
           <HeaderUserProfileButton
             isMobile={isMobile}
+            isCompactMobile={isCompactMobile}
             profileMenuItems={profileMenuItems}
             profileMenuOpen={profileMenuOpen}
             setProfileMenuOpen={setProfileMenuOpen}
@@ -466,6 +492,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
+  const isCompactMobile = !screens.sm;
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -709,10 +736,11 @@ export default function AppLayout() {
         {renderNavColumn(false, true)}
       </Drawer>
 
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         {/* Barra Superior de Linha Única: [Trilha de Escopo] ── [Status Pill | ⌘K | Perfil] */}
         <AppTopHeader
           isMobile={isMobile}
+          isCompactMobile={isCompactMobile}
           isOperationsRoute={isOperationsRoute}
           nonOperationTitle={nonOperationTitle}
           user={user}
@@ -731,6 +759,8 @@ export default function AppLayout() {
             padding: isMobile ? '16px 12px 24px' : '24px 28px 32px',
             background: 'var(--ps-bg)',
             flex: 1,
+            minWidth: 0,
+            overflowX: 'clip',
           }}
         >
           <Outlet />

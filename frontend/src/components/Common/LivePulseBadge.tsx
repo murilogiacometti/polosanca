@@ -178,6 +178,7 @@ function CompactLivePulseBadge({
     <Tooltip title={fullTooltip}>
       <button
         type="button"
+        className="ps-live-pulse-compact"
         onClick={onRefresh || undefined}
         style={{
           display: 'inline-flex',
@@ -193,6 +194,8 @@ function CompactLivePulseBadge({
           lineHeight: 1.25,
           cursor: onRefresh ? 'pointer' : 'default',
           whiteSpace: 'nowrap',
+          maxWidth: '100%',
+          overflow: 'hidden',
         }}
       >
         <span
@@ -206,7 +209,15 @@ function CompactLivePulseBadge({
             flexShrink: 0,
           }}
         />
-        <span>{isRefreshing ? 'Sincronizando...' : visual.statusBadgeText}</span>
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isRefreshing ? 'Sincronizando...' : visual.statusBadgeText}
+        </span>
       </button>
     </Tooltip>
   );

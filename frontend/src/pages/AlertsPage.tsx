@@ -1011,23 +1011,25 @@ export default function AlertsPage({ headerNav = null, onJumpToRules }: AlertsPa
       />
 
       <div className="ps-toolbar-row">
-        <Space size={10} wrap>
+        <Space size={10} wrap style={{ maxWidth: '100%' }}>
           {headerNav}
-          <Segmented<StatusTabKey>
-            className="ps-pill-switcher"
-            value={statusTab}
-            onChange={(key) => {
-              setStatusTab(key);
-              setSelectedRowKeys([]);
-              setPage(1);
-            }}
-            options={[
-              { value: 'active', label: 'Ativos' },
-              { value: 'acknowledged', label: 'Reconhecidos' },
-              { value: 'resolved', label: 'Resolvidos' },
-              { value: 'all', label: 'Todos os Alertas' },
-            ]}
-          />
+          <div className="ps-segmented-scroll">
+            <Segmented<StatusTabKey>
+              className="ps-pill-switcher"
+              value={statusTab}
+              onChange={(key) => {
+                setStatusTab(key);
+                setSelectedRowKeys([]);
+                setPage(1);
+              }}
+              options={[
+                { value: 'active', label: 'Ativos' },
+                { value: 'acknowledged', label: 'Reconhecidos' },
+                { value: 'resolved', label: 'Resolvidos' },
+                { value: 'all', label: 'Todos' },
+              ]}
+            />
+          </div>
         </Space>
 
         <Space wrap>
