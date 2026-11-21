@@ -547,18 +547,34 @@ const extractPayloadMessage = (payload: unknown): string | null => {
   return null;
 };
 
+const getErrorStatusCode = (error: unknown): number | null => {
+  if (!isObjectRecord(error) || !('response' in error)) return null;
+  const { response } = error;
+  if (!isObjectRecord(response) || !('status' in response)) return null;
+  return typeof response.status === 'number' ? response.status : null;
+};
+
+const isHtmlMarkup = (value: string): boolean => /^\s*<(!doctype|html|head|body)\b/i.test(value);
+
 export const extractApiError = (
   error: unknown,
   fallback = 'Ocorreu um erro inesperado. Tente novamente.'
 ): string => {
+  const status = getErrorStatusCode(error);
   const data = getErrorResponseData(error);
   if (!data) {
     if (isObjectRecord(error) && 'message' in error && error.message === 'Network Error') {
       return 'Não foi possível conectar ao servidor da API. Verifique sua conexão.';
     }
+    if (status && status >= 502 && status <= 504) {
+      return 'O servidor está temporariamente indisponível. Tente novamente em instantes.';
+    }
     return fallback;
   }
   if (typeof data === 'string') {
+    if (isHtmlMarkup(data) || (status && status >= 502 && status <= 504)) {
+      return 'O servidor está temporariamente indisponível. Tente novamente em instantes.';
+    }
     return data;
   }
   return extractPayloadMessage(data) ?? fallback;

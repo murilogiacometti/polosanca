@@ -153,41 +153,45 @@ export default function LoginPage() {
             </Button>
           </Form>
 
-          <Divider plain style={{ margin: '8px 0' }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Acesso Rápido (Ambiente de Demonstração)
-            </Text>
-          </Divider>
+          {import.meta.env.DEV && (
+            <>
+              <Divider plain style={{ margin: '8px 0' }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Acesso Rápido (Ambiente de Demonstração)
+                </Text>
+              </Divider>
 
-          <Space wrap style={{ justifyContent: 'center', width: '100%' }}>
-            <Button
-              size="small"
-              disabled={loading}
-              onClick={() => {
-                void handleQuickLogin('admin@polosanca.com', 'admin123');
-              }}
-            >
-              Admin Global
-            </Button>
-            <Button
-              size="small"
-              disabled={loading}
-              onClick={() => {
-                void handleQuickLogin('admin@testcompany.com', 'password123');
-              }}
-            >
-              Admin Empresa
-            </Button>
-            <Button
-              size="small"
-              disabled={loading}
-              onClick={() => {
-                void handleQuickLogin('viewer@testcompany.com', 'viewer123');
-              }}
-            >
-              Visualizador
-            </Button>
-          </Space>
+              <Space wrap style={{ justifyContent: 'center', width: '100%' }}>
+                <Button
+                  size="small"
+                  disabled={loading}
+                  onClick={() => {
+                    void handleQuickLogin('admin@polosanca.com', 'admin123');
+                  }}
+                >
+                  Admin Global
+                </Button>
+                <Button
+                  size="small"
+                  disabled={loading}
+                  onClick={() => {
+                    void handleQuickLogin('admin@testcompany.com', 'password123');
+                  }}
+                >
+                  Admin Empresa
+                </Button>
+                <Button
+                  size="small"
+                  disabled={loading}
+                  onClick={() => {
+                    void handleQuickLogin('viewer@testcompany.com', 'viewer123');
+                  }}
+                >
+                  Visualizador
+                </Button>
+              </Space>
+            </>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: 4 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
