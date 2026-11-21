@@ -47,9 +47,9 @@ export default function StatMiniCard({
     >
       <span
         style={{
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: 700,
-          letterSpacing: '0.05em',
+          letterSpacing: '0.04em',
           textTransform: 'uppercase',
           color: labelColor,
         }}

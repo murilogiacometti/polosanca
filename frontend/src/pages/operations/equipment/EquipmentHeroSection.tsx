@@ -91,10 +91,10 @@ function computeTempDeviationBadge(
 }
 
 const LABEL_STYLE: CSSProperties = {
-  fontSize: 10.5,
+  fontSize: 12,
   fontWeight: 700,
   textTransform: 'uppercase',
-  letterSpacing: '0.05em',
+  letterSpacing: '0.04em',
   color: 'var(--ps-text-muted)',
 };
 

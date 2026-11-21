@@ -105,7 +105,7 @@ export default function StatusPill({
 }: StatusPillProps) {
   const cfg = resolveToneStyle(tone);
   const padding = size === 'md' ? '4px 11px' : '3px 9px';
-  const fontSize = size === 'md' ? 12 : 11;
+  const fontSize = size === 'md' ? 12.5 : 12;
 
   const pillStyle = {
     display: 'inline-flex',

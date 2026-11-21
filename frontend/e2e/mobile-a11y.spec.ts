@@ -102,6 +102,47 @@ async function assertMobileLayoutAndA11y(page: Page, screenLabel: string): Promi
     undersized,
     `${screenLabel}: undersized mobile touch targets:\n${JSON.stringify(undersized, null, 2)}`
   ).toEqual([]);
+
+  // 4. Mobile typography & pinch-zoom checks:
+  //    - Viewport meta must allow pinch-zoom (WCAG 1.4.4)
+  //    - Visible text inputs must be >= 16px to prevent iOS Safari auto-zoom
+  const typographyIssues = await page.evaluate(() => {
+    const issues: string[] = [];
+
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    const content = viewportMeta?.getAttribute('content') || '';
+    if (/user-scalable\s*=\s*(no|0)/i.test(content) || /maximum-scale\s*=\s*1(\.0)?\b/i.test(content)) {
+      issues.push(`Viewport blocks pinch-zoom: "${content}"`);
+    }
+
+    const inputs = Array.from(
+      document.querySelectorAll(
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), textarea'
+      )
+    );
+    for (const el of inputs) {
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      const fontSize = parseFloat(style.fontSize);
+      if (fontSize < 16) {
+        const label =
+          el.getAttribute('aria-label') ||
+          el.getAttribute('placeholder') ||
+          el.getAttribute('id') ||
+          el.tagName;
+        issues.push(`Input "${label}" font-size is ${fontSize}px (< 16px triggers iOS auto-zoom)`);
+      }
+    }
+
+    return issues;
+  });
+
+  expect(
+    typographyIssues,
+    `${screenLabel}: mobile typography / zoom issues:\n${typographyIssues.join('\n')}`
+  ).toEqual([]);
 }
 
 async function assertMobileHeaderAccessible(page: Page, screenLabel: string): Promise<void> {

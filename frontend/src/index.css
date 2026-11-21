@@ -563,9 +563,20 @@ body {
 
   .ps-live-pulse-compact {
     padding: 4px 8px !important;
-    font-size: 11px !important;
-    max-width: 152px;
+    font-size: 12px !important;
+    max-width: 158px;
     min-height: 36px;
+  }
+
+  /* Prevent iOS Safari auto-zoom on form input focus (< 16px triggers zoom) */
+  input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-affix-wrapper > input.ant-input,
+  .ant-select-selection-search-input,
+  .ant-select-input {
+    font-size: 16px !important;
   }
 
   .ant-layout-header button {
