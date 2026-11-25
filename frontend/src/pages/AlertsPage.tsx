@@ -10,6 +10,7 @@ import {
   EyeOutlined,
   FileDoneOutlined,
   ReloadOutlined,
+  SlidersOutlined,
 } from '@ant-design/icons';
 import {
   App as AntdApp,
@@ -20,6 +21,7 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  Grid,
   Input,
   Modal,
   Popconfirm,
@@ -53,7 +55,7 @@ import LivePulseBadge from '../components/Common/LivePulseBadge';
 import LiveRecoveryBadge from '../components/Common/LiveRecoveryBadge';
 import WorkspaceSkeleton from '../components/Common/WorkspaceSkeleton';
 import AcknowledgeAlertModal from '../components/Modals/AcknowledgeAlertModal';
-import { PageHeader, StatMiniCard, StatusPill } from '../components/ui';
+import { AccentCard, PageHeader, StatMiniCard, StatusPill } from '../components/ui';
 import { useAuth } from '../context/authContextObject';
 import { useSuspendShortcuts } from '../context/uiShellContextObject';
 import { invalidateAlertQueries, queryKeys } from '../query/queryClient';
@@ -76,10 +78,12 @@ import {
   extractApiError,
   extractBlobApiError,
   formatDateTimePtBR,
+  formatRelativeTimePtBR,
 } from '../utils/formatters';
 
 const { Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
+const { useBreakpoint } = Grid;
 
 const BATCH_NOTE_PRESETS = [
   'Queda de energia na rede',
@@ -468,6 +472,288 @@ function AlertDetailDrawer({
   );
 }
 
+interface MobileAlertsFeedProps {
+  loading: boolean;
+  alerts: AlertItem[];
+  realtimeById: Record<string, RealtimeSnapshot>;
+  canWriteOperations: boolean;
+  quickAckId: string | null;
+  onNavigateEquipment: (alert: AlertItem) => void;
+  onOpenDetails: (alert: AlertItem) => void;
+  onQuickAck: (alert: AlertItem) => void;
+  onResolve: (alert: AlertItem) => void;
+}
+
+function MobileAlertsFeed({
+  loading,
+  alerts,
+  realtimeById,
+  canWriteOperations,
+  quickAckId,
+  onNavigateEquipment,
+  onOpenDetails,
+  onQuickAck,
+  onResolve,
+}: MobileAlertsFeedProps) {
+  if (loading && alerts.length === 0) {
+    return <WorkspaceSkeleton variant="grid" />;
+  }
+  if (alerts.length === 0) {
+    return (
+      <Card style={{ borderRadius: 16 }}>
+        <Empty description="Nenhum alerta encontrado para os filtros aplicados." />
+      </Card>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {alerts.map((alert) => {
+        const accent = alert.severity === 'critical' ? 'critical' : 'warning';
+        const dotColor = alert.severity === 'critical' ? '#b91c1c' : '#b45309';
+        const snap = realtimeById[alert.equipment_id];
+        const canTriage = canWriteOperations && alert.status !== 'resolved';
+        return (
+          <AccentCard key={alert.id} status={accent} padding="20px" gap={12}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: dotColor,
+                    flexShrink: 0,
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ps-mono"
+                  onClick={() => onNavigateEquipment(alert)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    padding: '4px 0',
+                    minHeight: 28,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: 'var(--ps-text-primary)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {alert.serial || 'Equipamento'}
+                </button>
+              </div>
+              <span className="ps-tabular" style={{ fontSize: 12.5, color: 'var(--ps-text-secondary)', flexShrink: 0 }}>
+                {formatRelativeTimePtBR(alert.created_at)}
+              </span>
+            </div>
+
+            <div style={{ fontSize: 14.5, lineHeight: 1.45, color: 'var(--ps-text-primary)' }}>
+              {alert.message}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              {snap ? (
+                <LiveRecoveryBadge snapshot={snap} />
+              ) : (
+                <span style={{ fontSize: 12.5, color: 'var(--ps-text-secondary)' }}>
+                  {ALERT_TYPE_LABELS[alert.type] || alert.type}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenDetails(alert)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '4px 0',
+                  minHeight: 28,
+                  color: '#1d4ed8',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Detalhes
+              </button>
+            </div>
+
+            {canTriage && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: alert.status === 'active' ? '1fr 1fr' : '1fr',
+                  gap: 10,
+                  marginTop: 4,
+                }}
+              >
+                {alert.status === 'active' && (
+                  <Button
+                    loading={quickAckId === alert.id}
+                    onClick={() => onQuickAck(alert)}
+                    style={{ height: 42, borderRadius: 999, fontWeight: 600 }}
+                  >
+                    Reconhecer
+                  </Button>
+                )}
+                <Popconfirm
+                  title="Resolver este alerta agora?"
+                  okText="Resolver"
+                  cancelText="Cancelar"
+                  onConfirm={() => onResolve(alert)}
+                >
+                  <Button
+                    type="primary"
+                    style={{ height: 42, borderRadius: 999, fontWeight: 600 }}
+                  >
+                    Resolver
+                  </Button>
+                </Popconfirm>
+              </div>
+            )}
+          </AccentCard>
+        );
+      })}
+    </div>
+  );
+}
+
+interface MobileAlertsSectionProps {
+  headerNav: ReactNode;
+  activeFilterCount: number;
+  alertStats: AlertStatistics;
+  statusTab: StatusTabKey;
+  onStatusTabChange: (key: StatusTabKey) => void;
+  loading: boolean;
+  alerts: AlertItem[];
+  realtimeById: Record<string, RealtimeSnapshot>;
+  canWriteOperations: boolean;
+  quickAckId: string | null;
+  mobileFiltersOpen: boolean;
+  onOpenMobileFilters: () => void;
+  onCloseMobileFilters: () => void;
+  filterBarNode: ReactNode;
+  exportingCsv: boolean;
+  refreshing: boolean;
+  onExportCsv: () => void;
+  onRefresh: () => void;
+  onNavigateEquipment: (alert: AlertItem) => void;
+  onOpenDetails: (alert: AlertItem) => void;
+  onQuickAck: (alert: AlertItem) => void;
+  onResolve: (alert: AlertItem) => void;
+}
+
+function MobileAlertsSection({
+  headerNav,
+  activeFilterCount,
+  alertStats,
+  statusTab,
+  onStatusTabChange,
+  loading,
+  alerts,
+  realtimeById,
+  canWriteOperations,
+  quickAckId,
+  mobileFiltersOpen,
+  onOpenMobileFilters,
+  onCloseMobileFilters,
+  filterBarNode,
+  exportingCsv,
+  refreshing,
+  onExportCsv,
+  onRefresh,
+  onNavigateEquipment,
+  onOpenDetails,
+  onQuickAck,
+  onResolve,
+}: MobileAlertsSectionProps) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: '-0.03em',
+            color: 'var(--ps-text-primary)',
+          }}
+        >
+          Central de Alertas
+        </h1>
+        <Button
+          icon={<SlidersOutlined />}
+          type={activeFilterCount > 0 ? 'primary' : 'default'}
+          ghost={activeFilterCount > 0}
+          aria-label="Abrir filtros de alertas"
+          onClick={onOpenMobileFilters}
+          style={{ borderRadius: 999 }}
+        />
+      </div>
+
+      {headerNav && <div className="ps-segmented-scroll">{headerNav}</div>}
+
+      <Segmented<StatusTabKey>
+        block
+        className="ps-pill-switcher"
+        value={statusTab === 'acknowledged' || statusTab === 'all' ? 'active' : statusTab}
+        onChange={onStatusTabChange}
+        options={[
+          { value: 'active', label: `Ativos (${alertStats.total_active || 0})` },
+          { value: 'resolved', label: 'Resolvidos' },
+        ]}
+      />
+
+      <MobileAlertsFeed
+        loading={loading}
+        alerts={alerts}
+        realtimeById={realtimeById}
+        canWriteOperations={canWriteOperations}
+        quickAckId={quickAckId}
+        onNavigateEquipment={onNavigateEquipment}
+        onOpenDetails={onOpenDetails}
+        onQuickAck={onQuickAck}
+        onResolve={onResolve}
+      />
+
+      <Drawer
+        open={mobileFiltersOpen}
+        onClose={onCloseMobileFilters}
+        placement="bottom"
+        height="auto"
+        title="Filtros de Alertas"
+        styles={{ body: { padding: '16px 18px 28px' } }}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Segmented<StatusTabKey>
+            block
+            className="ps-pill-switcher"
+            value={statusTab}
+            onChange={onStatusTabChange}
+            options={[
+              { value: 'active', label: 'Ativos' },
+              { value: 'acknowledged', label: 'Reconhecidos' },
+              { value: 'resolved', label: 'Resolvidos' },
+              { value: 'all', label: 'Todos' },
+            ]}
+          />
+          {filterBarNode}
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Button icon={<DownloadOutlined />} loading={exportingCsv} onClick={onExportCsv}>
+              Exportar CSV
+            </Button>
+            <Button icon={<ReloadOutlined spin={refreshing} />} loading={refreshing} onClick={onRefresh}>
+              Atualizar
+            </Button>
+          </Space>
+        </Space>
+      </Drawer>
+    </>
+  );
+}
+
 interface AlertsTableCardProps {
   loading: boolean;
   alerts: AlertItem[];
@@ -707,13 +993,148 @@ function buildAlertsColumns({
   ];
 }
 
+function countActiveAlertFilters(params: {
+  severityFilter?: AlertSeverity;
+  branchFilter?: string;
+  equipmentFilter?: string;
+  dateRange: [Dayjs | null, Dayjs | null] | null;
+}): number {
+  return [
+    Boolean(params.severityFilter),
+    Boolean(params.branchFilter),
+    Boolean(params.equipmentFilter),
+    Boolean(params.dateRange?.[0] || params.dateRange?.[1]),
+  ].filter(Boolean).length;
+}
+
+interface DesktopAlertsSectionProps {
+  headerNav: ReactNode;
+  pollError: boolean;
+  lastRefreshedAt: string | null;
+  alertStats: AlertStatistics;
+  statusTab: StatusTabKey;
+  severityFilter: AlertSeverity | undefined;
+  pagination: PaginationMeta;
+  exportingCsv: boolean;
+  refreshing: boolean;
+  loading: boolean;
+  alerts: AlertItem[];
+  columns: ColumnsType<AlertItem>;
+  rowSelection: TableProps<AlertItem>['rowSelection'];
+  filterBarNode: ReactNode;
+  onSelectAllActive: () => void;
+  onToggleSeverity: (sev: AlertSeverity) => void;
+  onStatusTabChange: (key: StatusTabKey) => void;
+  onExportCsv: () => void;
+  onRefresh: () => void;
+  onPageChange: (nextPage: number) => void;
+}
+
+function DesktopAlertsSection({
+  headerNav,
+  pollError,
+  lastRefreshedAt,
+  alertStats,
+  statusTab,
+  severityFilter,
+  pagination,
+  exportingCsv,
+  refreshing,
+  loading,
+  alerts,
+  columns,
+  rowSelection,
+  filterBarNode,
+  onSelectAllActive,
+  onToggleSeverity,
+  onStatusTabChange,
+  onExportCsv,
+  onRefresh,
+  onPageChange,
+}: DesktopAlertsSectionProps) {
+  return (
+    <>
+      <PageHeader
+        title="Central de Alertas"
+        align="center"
+        titleBadges={
+          <LivePulseBadge
+            hasError={pollError}
+            lastRefreshedAt={lastRefreshedAt}
+            intervalLabel="Monitoramento contínuo de ocorrências a cada 30 segundos"
+          />
+        }
+        subtitle="Triagem rápida, acompanhamento de recuperação ao vivo e histórico auditável de incidentes."
+        rightSlot={
+          <AlertsStatsRightSlot
+            alertStats={alertStats}
+            statusTab={statusTab}
+            severityFilter={severityFilter}
+            onSelectAllActive={onSelectAllActive}
+            onToggleSeverity={onToggleSeverity}
+          />
+        }
+      />
+
+      <div className="ps-toolbar-row">
+        <Space size={10} wrap style={{ maxWidth: '100%' }}>
+          {headerNav}
+          <div className="ps-segmented-scroll">
+            <Segmented<StatusTabKey>
+              className="ps-pill-switcher"
+              value={statusTab}
+              onChange={onStatusTabChange}
+              options={[
+                { value: 'active', label: 'Ativos' },
+                { value: 'acknowledged', label: 'Reconhecidos' },
+                { value: 'resolved', label: 'Resolvidos' },
+                { value: 'all', label: 'Todos' },
+              ]}
+            />
+          </div>
+        </Space>
+
+        <Space wrap>
+          <Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
+            Filtrados: <strong className="ps-tabular">{pagination.total}</strong>
+          </Text>
+          <Button icon={<DownloadOutlined />} loading={exportingCsv} onClick={onExportCsv}>
+            Exportar CSV
+          </Button>
+          <Button
+            icon={<ReloadOutlined spin={refreshing} />}
+            onClick={onRefresh}
+            loading={refreshing}
+          >
+            Atualizar
+          </Button>
+        </Space>
+      </div>
+
+      {filterBarNode}
+
+      <AlertsTableCard
+        loading={loading}
+        alerts={alerts}
+        columns={columns}
+        rowSelection={rowSelection}
+        pagination={pagination}
+        onPageChange={onPageChange}
+      />
+    </>
+  );
+}
+
 export default function AlertsPage({ headerNav = null, onJumpToRules }: AlertsPageProps) {
   const { message } = AntdApp.useApp();
   const { canWriteOperations } = useAuth();
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobilePhone = !screens.md;
 
   const [exportingCsv, setExportingCsv] = useState(false);
   const [quickAckId, setQuickAckId] = useState<string | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const [statusTab, setStatusTab] = useState<StatusTabKey>('active');
   const [severityFilter, setSeverityFilter] = useState<AlertSeverity | undefined>(undefined);
@@ -979,128 +1400,133 @@ export default function AlertsPage({ headerNav = null, onJumpToRules }: AlertsPa
       }
     : undefined;
 
+  const activeFilterCount = countActiveAlertFilters({
+    severityFilter,
+    branchFilter,
+    equipmentFilter,
+    dateRange,
+  });
+
+  const filterBarNode = (
+    <AlertsFilterBar
+      branches={branches}
+      equipments={equipments}
+      severityFilter={severityFilter}
+      branchFilter={branchFilter}
+      equipmentFilter={equipmentFilter}
+      dateRange={dateRange}
+      onSeverityChange={(val) => {
+        setSeverityFilter(val);
+        setSelectedRowKeys([]);
+        setPage(1);
+      }}
+      onBranchChange={(val) => {
+        setBranchFilter(val);
+        setEquipmentFilter(undefined);
+        setSelectedRowKeys([]);
+        setPage(1);
+      }}
+      onEquipmentChange={(val) => {
+        setEquipmentFilter(val);
+        setSelectedRowKeys([]);
+        setPage(1);
+      }}
+      onDateRangeChange={(vals) => {
+        setDateRange(vals);
+        setSelectedRowKeys([]);
+        setPage(1);
+      }}
+    />
+  );
+
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <PageHeader
-        title="Central de Alertas"
-        align="center"
-        titleBadges={
-          <LivePulseBadge
-            hasError={pollError}
-            lastRefreshedAt={lastRefreshedAt}
-            intervalLabel="Monitoramento contínuo de ocorrências a cada 30 segundos"
-          />
-        }
-        subtitle="Triagem rápida, acompanhamento de recuperação ao vivo e histórico auditável de incidentes."
-        rightSlot={
-          <AlertsStatsRightSlot
-            alertStats={alertStats}
-            statusTab={statusTab}
-            severityFilter={severityFilter}
-            onSelectAllActive={() => {
-              setStatusTab('active');
-              setSeverityFilter(undefined);
-              setSelectedRowKeys([]);
-              setPage(1);
-            }}
-            onToggleSeverity={(sev) => {
-              setStatusTab('active');
-              setSeverityFilter((prev) => (prev === sev ? undefined : sev));
-              setSelectedRowKeys([]);
-              setPage(1);
-            }}
-          />
-        }
-      />
-
-      <div className="ps-toolbar-row">
-        <Space size={10} wrap style={{ maxWidth: '100%' }}>
-          {headerNav}
-          <div className="ps-segmented-scroll">
-            <Segmented<StatusTabKey>
-              className="ps-pill-switcher"
-              value={statusTab}
-              onChange={(key) => {
-                setStatusTab(key);
-                setSelectedRowKeys([]);
-                setPage(1);
-              }}
-              options={[
-                { value: 'active', label: 'Ativos' },
-                { value: 'acknowledged', label: 'Reconhecidos' },
-                { value: 'resolved', label: 'Resolvidos' },
-                { value: 'all', label: 'Todos' },
-              ]}
-            />
-          </div>
-        </Space>
-
-        <Space wrap>
-          <Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
-            Filtrados: <strong className="ps-tabular">{pagination.total}</strong>
-          </Text>
-          <Button
-            icon={<DownloadOutlined />}
-            loading={exportingCsv}
-            onClick={() => {
-              void handleExportCsv();
-            }}
-          >
-            Exportar CSV
-          </Button>
-          <Button
-            icon={<ReloadOutlined spin={refreshing} />}
-            onClick={() => {
-              void fetchAlerts(true);
-            }}
-            loading={refreshing}
-          >
-            Atualizar
-          </Button>
-        </Space>
-      </div>
-
-      <AlertsFilterBar
-        branches={branches}
-        equipments={equipments}
-        severityFilter={severityFilter}
-        branchFilter={branchFilter}
-        equipmentFilter={equipmentFilter}
-        dateRange={dateRange}
-        onSeverityChange={(val) => {
-          setSeverityFilter(val);
-          setSelectedRowKeys([]);
-          setPage(1);
-        }}
-        onBranchChange={(val) => {
-          setBranchFilter(val);
-          setEquipmentFilter(undefined);
-          setSelectedRowKeys([]);
-          setPage(1);
-        }}
-        onEquipmentChange={(val) => {
-          setEquipmentFilter(val);
-          setSelectedRowKeys([]);
-          setPage(1);
-        }}
-        onDateRangeChange={(vals) => {
-          setDateRange(vals);
-          setSelectedRowKeys([]);
-          setPage(1);
-        }}
-      />
-
-      <AlertsTableCard
-        loading={loading}
-        alerts={alerts}
-        columns={columns}
-        rowSelection={rowSelection}
-        pagination={pagination}
-        onPageChange={(nextPage) => {
-          setSelectedRowKeys([]);
-          setPage(nextPage);
-        }}
-      />
+      {isMobilePhone ? (
+        <MobileAlertsSection
+          headerNav={headerNav}
+          activeFilterCount={activeFilterCount}
+          alertStats={alertStats}
+          statusTab={statusTab}
+          onStatusTabChange={(key) => {
+            setStatusTab(key);
+            setSelectedRowKeys([]);
+            setPage(1);
+          }}
+          loading={loading}
+          alerts={alerts}
+          realtimeById={realtimeById}
+          canWriteOperations={canWriteOperations}
+          quickAckId={quickAckId}
+          mobileFiltersOpen={mobileFiltersOpen}
+          onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+          onCloseMobileFilters={() => setMobileFiltersOpen(false)}
+          filterBarNode={filterBarNode}
+          exportingCsv={exportingCsv}
+          refreshing={refreshing}
+          onExportCsv={() => {
+            void handleExportCsv();
+          }}
+          onRefresh={() => {
+            void fetchAlerts(true);
+          }}
+          onNavigateEquipment={(alert) => {
+            void navigate(resolveAlertEquipmentPath(alert));
+          }}
+          onOpenDetails={(alert) => {
+            void handleOpenDetails(alert);
+          }}
+          onQuickAck={(alert) => {
+            void handleQuickAcknowledge(alert);
+          }}
+          onResolve={(alert) => {
+            void handleResolve(alert);
+          }}
+        />
+      ) : (
+        <DesktopAlertsSection
+          headerNav={headerNav}
+          pollError={pollError}
+          lastRefreshedAt={lastRefreshedAt}
+          alertStats={alertStats}
+          statusTab={statusTab}
+          severityFilter={severityFilter}
+          pagination={pagination}
+          exportingCsv={exportingCsv}
+          refreshing={refreshing}
+          loading={loading}
+          alerts={alerts}
+          columns={columns}
+          rowSelection={rowSelection}
+          filterBarNode={filterBarNode}
+          onSelectAllActive={() => {
+            setStatusTab('active');
+            setSeverityFilter(undefined);
+            setSelectedRowKeys([]);
+            setPage(1);
+          }}
+          onToggleSeverity={(sev) => {
+            setStatusTab('active');
+            setSeverityFilter((prev) => (prev === sev ? undefined : sev));
+            setSelectedRowKeys([]);
+            setPage(1);
+          }}
+          onStatusTabChange={(key) => {
+            setStatusTab(key);
+            setSelectedRowKeys([]);
+            setPage(1);
+          }}
+          onExportCsv={() => {
+            void handleExportCsv();
+          }}
+          onRefresh={() => {
+            void fetchAlerts(true);
+          }}
+          onPageChange={(nextPage) => {
+            setSelectedRowKeys([]);
+            setPage(nextPage);
+          }}
+        />
+      )}
 
       {canWriteOperations && selectedRowKeys.length > 0 && (
         <AlertsBatchBar

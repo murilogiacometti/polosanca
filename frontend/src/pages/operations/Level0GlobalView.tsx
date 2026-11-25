@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowRightOutlined,
   CheckCircleOutlined,
   EditOutlined,
   PlusOutlined,
@@ -11,6 +12,7 @@ import {
   Button,
   Card,
   Empty,
+  Grid,
   Segmented,
   Space,
   Tag,
@@ -33,7 +35,10 @@ import {
   COMPANY_STATUS_CONFIG,
   extractApiError,
   formatCompactAgePtBR,
+  formatTemperature,
 } from '../../utils/formatters';
+
+const { useBreakpoint } = Grid;
 
 type CompanyRecord = Company;
 
@@ -236,6 +241,218 @@ function CompanyOverviewCard({
   );
 }
 
+interface MobileOperationsHomeProps {
+  companies: CompanyRecord[];
+  rollupsByCompany: Record<string, CompanyRollup>;
+  urgentUnit: { eq: EquipmentWithLive; companyName: string } | null;
+  offlineCount: number;
+  onZoomCompany: (companyId: string) => void;
+  onDirectJumpEquipment: (
+    companyId: string,
+    branchId: string,
+    equipmentId: string | null,
+    statusFilter?: EquipmentStatus
+  ) => void;
+  onOpenNewCompany: () => void;
+}
+
+function MobileOperationsHome({
+  companies,
+  rollupsByCompany,
+  urgentUnit,
+  offlineCount,
+  onZoomCompany,
+  onDirectJumpEquipment,
+  onOpenNewCompany,
+}: MobileOperationsHomeProps) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 26,
+              fontWeight: 800,
+              letterSpacing: '-0.03em',
+              color: 'var(--ps-text-primary)',
+              lineHeight: 1.15,
+            }}
+          >
+            Empresas Monitoradas
+          </h1>
+          {offlineCount > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <StatusPill tone="offline" dot>
+                {offlineCount} {offlineCount === 1 ? 'unidade offline' : 'unidades offline'}
+              </StatusPill>
+            </div>
+          )}
+        </div>
+        <Button
+          icon={<PlusOutlined />}
+          aria-label="Nova Empresa"
+          onClick={onOpenNewCompany}
+          style={{ borderRadius: 10, flexShrink: 0 }}
+        />
+      </div>
+
+      {urgentUnit && (
+        <AccentCard
+          status={urgentUnit.eq.effectiveStatus === 'critical' ? 'critical' : 'warning'}
+          padding="20px"
+          gap={12}
+          ariaLabel={`Abrir câmara ${urgentUnit.eq.serial}`}
+          onClick={() =>
+            onDirectJumpEquipment(
+              urgentUnit.eq.company_id,
+              urgentUnit.eq.branch_id,
+              urgentUnit.eq.id
+            )
+          }
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              color: urgentUnit.eq.effectiveStatus === 'critical' ? '#b91c1c' : '#b45309',
+            }}
+          >
+            Atenção Imediata
+          </span>
+          <div>
+            <div
+              className="ps-mono"
+              style={{ fontSize: 18, fontWeight: 700, color: 'var(--ps-text-primary)' }}
+            >
+              {urgentUnit.eq.serial}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--ps-text-secondary)', marginTop: 2 }}>
+              {urgentUnit.companyName}
+              {urgentUnit.eq.liveDoor === 'open' ? ' · Porta Aberta' : ''}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span
+              className="ps-tabular"
+              style={{
+                fontSize: 34,
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                color: urgentUnit.eq.effectiveStatus === 'critical' ? '#b91c1c' : '#b45309',
+              }}
+            >
+              {formatTemperature(urgentUnit.eq.liveTemperature)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              onDirectJumpEquipment(
+                urgentUnit.eq.company_id,
+                urgentUnit.eq.branch_id,
+                urgentUnit.eq.id
+              )
+            }
+            style={{
+              border: 'none',
+              background: 'transparent',
+              padding: '4px 0',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              color: '#1d4ed8',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              alignSelf: 'flex-start',
+            }}
+          >
+            <span>Abrir câmara</span>
+            <ArrowRightOutlined style={{ fontSize: 12 }} />
+          </button>
+        </AccentCard>
+      )}
+
+      <section aria-label="Lista de empresas">
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: 'var(--ps-text-primary)',
+            marginBottom: 10,
+          }}
+        >
+          Empresas ({companies.length})
+        </div>
+        {companies.length === 0 ? (
+          <Card style={{ borderRadius: 16 }}>
+            <Empty description="Nenhuma empresa encontrada." />
+          </Card>
+        ) : (
+          <div className="ps-grouped-list">
+            {companies.map((comp) => {
+              const r = rollupsByCompany[comp.id] || EMPTY_ROLLUP;
+              const branchesCount = comp.branches_count ?? 0;
+              const totalUnits = r.equipments.length;
+              const badgeTone =
+                r.critical > 0
+                  ? 'critical'
+                  : r.warning > 0
+                    ? 'warning'
+                    : r.offline > 0 && r.operational === 0
+                      ? 'offline'
+                      : 'operational';
+              const badgeLabel =
+                r.critical > 0
+                  ? `${r.critical} Crítico`
+                  : r.warning > 0
+                    ? `${r.warning} Atenção`
+                    : r.offline > 0 && r.operational === 0
+                      ? 'Offline'
+                      : 'Normal';
+              return (
+                <button
+                  key={comp.id}
+                  type="button"
+                  className="ps-grouped-list-row"
+                  onClick={() => onZoomCompany(comp.id)}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: 'var(--ps-text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {comp.name}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'var(--ps-text-secondary)', marginTop: 2 }}>
+                      {branchesCount} {branchesCount === 1 ? 'filial' : 'filiais'} · {totalUnits}{' '}
+                      {totalUnits === 1 ? 'câmara' : 'câmaras'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <StatusPill tone={badgeTone}>{badgeLabel}</StatusPill>
+                    <RightOutlined style={{ fontSize: 11, color: 'var(--ps-text-muted)' }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 /**
  * Nível 0 (Visão Global — Empresas Monitoradas):
  * Construído inteiramente sobre as primitivas canônicas de UI (`PageHeader`, `StatMiniCard`,
@@ -251,6 +468,8 @@ export default function Level0GlobalView({
 }: Level0GlobalViewProps) {
   const { message, modal } = AntdApp.useApp();
   const { acquireShortcutLock } = useUiShell();
+  const screens = useBreakpoint();
+  const isMobilePhone = !screens.md;
 
   const [statusFilter, setStatusFilter] = useState<CompanyStatusFilter>('active');
   const [healthFilter, setHealthFilter] = useState<CompanyHealthFilter>('all');
@@ -417,6 +636,51 @@ export default function Level0GlobalView({
 
   const showFilterToolbar =
     companies.length > 4 || fleetTotals.inactiveCompanies > 0 || Boolean(searchText);
+
+  const urgentUnit = useMemo(() => {
+    const companyNameById = new Map(companies.map((c) => [c.id, c.name]));
+    const firstCrit = equipments.find((e) => e.effectiveStatus === 'critical');
+    const target = firstCrit ?? equipments.find((e) => e.effectiveStatus === 'warning');
+    if (!target) return null;
+    return { eq: target, companyName: companyNameById.get(target.company_id) || 'Empresa' };
+  }, [companies, equipments]);
+
+  const offlineCount = useMemo(
+    () => equipments.filter((e) => e.effectiveStatus === 'offline').length,
+    [equipments]
+  );
+
+  if (isMobilePhone) {
+    return (
+      <>
+        <MobileOperationsHome
+          companies={filteredCompanies}
+          rollupsByCompany={rollupsByCompany}
+          urgentUnit={urgentUnit}
+          offlineCount={offlineCount}
+          onZoomCompany={onZoomCompany}
+          onDirectJumpEquipment={onDirectJumpEquipment}
+          onOpenNewCompany={() => {
+            setEditingCompany(null);
+            setCompanyModalOpen(true);
+          }}
+        />
+        <CompanyFormModal
+          open={companyModalOpen}
+          company={editingCompany}
+          onClose={() => {
+            setCompanyModalOpen(false);
+            setEditingCompany(null);
+          }}
+          onSuccess={() => {
+            setCompanyModalOpen(false);
+            setEditingCompany(null);
+            onMutated?.();
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>

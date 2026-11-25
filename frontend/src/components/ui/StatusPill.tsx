@@ -46,7 +46,7 @@ const TONE_STYLES: Record<
   brand: {
     bg: 'rgba(59, 130, 246, 0.1)',
     border: 'rgba(59, 130, 246, 0.22)',
-    color: SEMANTIC_HEX.brand,
+    color: '#1d4ed8',
     dot: SEMANTIC_HEX.brand,
     pulseClass: '',
   },

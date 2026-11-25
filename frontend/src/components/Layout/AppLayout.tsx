@@ -300,8 +300,199 @@ function HeaderUserProfileButton({
   );
 }
 
+function MobileBottomTabBar({
+  selectedKey,
+  activeAlertCount,
+  onNavigate,
+  onOpenSearch,
+  onOpenAccount,
+}: {
+  selectedKey: string;
+  activeAlertCount: number;
+  onNavigate: (path: string) => void;
+  onOpenSearch: () => void;
+  onOpenAccount: () => void;
+}) {
+  return (
+    <nav className="ps-mobile-tabbar" aria-label="Navegação principal">
+      <button
+        type="button"
+        className={`ps-mobile-tab ${selectedKey === '/operacao' ? 'ps-mobile-tab-active' : ''}`}
+        aria-current={selectedKey === '/operacao' ? 'page' : undefined}
+        onClick={() => onNavigate('/operacao')}
+      >
+        <ActivityPulseIcon />
+        <span>Operação</span>
+      </button>
+
+      <button
+        type="button"
+        className={`ps-mobile-tab ${selectedKey === '/alerts' ? 'ps-mobile-tab-active' : ''}`}
+        aria-current={selectedKey === '/alerts' ? 'page' : undefined}
+        onClick={() => onNavigate('/alerts')}
+      >
+        <BellOutlined style={{ fontSize: 17 }} />
+        <span>Alertas</span>
+        {activeAlertCount > 0 && (
+          <span className="ps-mobile-tab-badge ps-tabular">
+            {activeAlertCount > 99 ? '99+' : activeAlertCount}
+          </span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        className="ps-mobile-tab"
+        onClick={onOpenSearch}
+      >
+        <SearchOutlined style={{ fontSize: 17 }} />
+        <span>Buscar</span>
+      </button>
+
+      <button
+        type="button"
+        className={`ps-mobile-tab ${selectedKey === '/admin' ? 'ps-mobile-tab-active' : ''}`}
+        onClick={onOpenAccount}
+      >
+        <UserOutlined style={{ fontSize: 17 }} />
+        <span>Conta</span>
+      </button>
+    </nav>
+  );
+}
+
+function MobileAccountSheet({
+  open,
+  onClose,
+  identity,
+  email,
+  canWriteOperations,
+  isDark,
+  onNavigateAdmin,
+  onOpenProfile,
+  onToggleTheme,
+  onOpenSupport,
+  onLogout,
+}: {
+  open: boolean;
+  onClose: () => void;
+  identity: UserHeaderIdentity;
+  email: string;
+  canWriteOperations: boolean;
+  isDark: boolean;
+  onNavigateAdmin: () => void;
+  onOpenProfile: () => void;
+  onToggleTheme: () => void;
+  onOpenSupport: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      placement="bottom"
+      height="auto"
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Avatar
+            size={36}
+            style={{ backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 700, flexShrink: 0 }}
+          >
+            {identity.initials}
+          </Avatar>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ps-text-primary)' }}>
+              {identity.primaryName}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--ps-text-secondary)' }}>
+              {email} · {identity.secondaryRole}
+            </div>
+          </div>
+        </div>
+      }
+      styles={{ body: { padding: '12px 16px 24px' } }}
+    >
+      <div className="ps-grouped-list">
+        {canWriteOperations && (
+          <button
+            type="button"
+            className="ps-grouped-list-row"
+            onClick={() => {
+              onClose();
+              onNavigateAdmin();
+            }}
+          >
+            <Space size={12}>
+              <SafetyCertificateOutlined style={{ fontSize: 16, color: '#2563eb' }} />
+              <span style={{ fontWeight: 600 }}>Administração & Usuários</span>
+            </Space>
+          </button>
+        )}
+        <button
+          type="button"
+          className="ps-grouped-list-row"
+          onClick={() => {
+            onClose();
+            onOpenProfile();
+          }}
+        >
+          <Space size={12}>
+            <UserOutlined style={{ fontSize: 16, color: 'var(--ps-text-secondary)' }} />
+            <span>Configurações da Conta</span>
+          </Space>
+        </button>
+        <button
+          type="button"
+          className="ps-grouped-list-row"
+          onClick={() => {
+            onClose();
+            onToggleTheme();
+          }}
+        >
+          <Space size={12}>
+            {isDark ? (
+              <SunOutlined style={{ fontSize: 16, color: 'var(--ps-text-secondary)' }} />
+            ) : (
+              <MoonOutlined style={{ fontSize: 16, color: 'var(--ps-text-secondary)' }} />
+            )}
+            <span>{isDark ? 'Tema Claro Padrão' : 'Tema Sala de Controle (Escuro)'}</span>
+          </Space>
+        </button>
+        <button
+          type="button"
+          className="ps-grouped-list-row"
+          onClick={() => {
+            onClose();
+            onOpenSupport();
+          }}
+        >
+          <Space size={12}>
+            <CustomerServiceOutlined style={{ fontSize: 16, color: 'var(--ps-text-secondary)' }} />
+            <span>Ajuda & Suporte PoloSanca</span>
+          </Space>
+        </button>
+        <button
+          type="button"
+          className="ps-grouped-list-row"
+          style={{ color: '#b91c1c', fontWeight: 600 }}
+          onClick={() => {
+            onClose();
+            onLogout();
+          }}
+        >
+          <Space size={12}>
+            <LogoutOutlined style={{ fontSize: 16 }} />
+            <span>Sair da Sessão</span>
+          </Space>
+        </button>
+      </div>
+    </Drawer>
+  );
+}
+
 function AppTopHeader({
   isMobile,
+  isMobilePhone,
   isCompactMobile,
   isOperationsRoute,
   nonOperationTitle,
@@ -316,6 +507,7 @@ function AppTopHeader({
   setTopBarRightNode,
 }: {
   isMobile: boolean;
+  isMobilePhone: boolean;
   isCompactMobile: boolean;
   isOperationsRoute: boolean;
   nonOperationTitle: string;
@@ -341,7 +533,7 @@ function AppTopHeader({
         background: 'var(--ps-header-bg)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        padding: isMobile ? '0 10px' : '0 26px',
+        padding: isMobilePhone ? '0 16px' : isMobile ? '0 12px' : '0 26px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -358,13 +550,13 @@ function AppTopHeader({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: isCompactMobile ? 4 : 8,
+          gap: isCompactMobile ? 6 : 8,
           minWidth: 0,
           flex: '1 1 auto',
           overflow: 'hidden',
         }}
       >
-        {isMobile && (
+        {isMobile && !isMobilePhone && (
           <Button
             type="text"
             icon={<MenuOutlined />}
@@ -427,49 +619,51 @@ function AppTopHeader({
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
         />
 
-        <Tooltip title="Saltar direto para Empresa, Filial ou Câmara Fria (⌘K ou /)">
-          <button
-            type="button"
-            aria-label="Ir para Empresa, Filial ou Câmara Fria"
-            onClick={() => setQuickJumpOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              width: isCompactMobile ? 36 : undefined,
-              height: isCompactMobile ? 36 : undefined,
-              padding: isCompactMobile ? 0 : '5px 9px 5px 11px',
-              borderRadius: 999,
-              border: '1px solid var(--ps-border)',
-              background: 'var(--ps-chip-bg)',
-              color: 'var(--ps-text-secondary)',
-              fontSize: 12,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <SearchOutlined style={{ fontSize: 13 }} />
-            {!isMobile && <span>Ir para...</span>}
-            {!isCompactMobile && (
-              <kbd
-                className="ps-mono"
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  padding: '1px 5px',
-                  borderRadius: 4,
-                  border: '1px solid var(--ps-border)',
-                  background: 'var(--ps-kbd-bg)',
-                  color: 'var(--ps-text-secondary)',
-                }}
-              >
-                ⌘K
-              </kbd>
-            )}
-          </button>
-        </Tooltip>
+        {!isMobilePhone && (
+          <Tooltip title="Saltar direto para Empresa, Filial ou Câmara Fria (⌘K ou /)">
+            <button
+              type="button"
+              aria-label="Ir para Empresa, Filial ou Câmara Fria"
+              onClick={() => setQuickJumpOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: isCompactMobile ? 36 : undefined,
+                height: isCompactMobile ? 36 : undefined,
+                padding: isCompactMobile ? 0 : '5px 9px 5px 11px',
+                borderRadius: 999,
+                border: '1px solid var(--ps-border)',
+                background: 'var(--ps-chip-bg)',
+                color: 'var(--ps-text-secondary)',
+                fontSize: 12,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              <SearchOutlined style={{ fontSize: 13 }} />
+              {!isMobile && <span>Ir para...</span>}
+              {!isCompactMobile && (
+                <kbd
+                  className="ps-mono"
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    padding: '1px 5px',
+                    borderRadius: 4,
+                    border: '1px solid var(--ps-border)',
+                    background: 'var(--ps-kbd-bg)',
+                    color: 'var(--ps-text-secondary)',
+                  }}
+                >
+                  ⌘K
+                </kbd>
+              )}
+            </button>
+          </Tooltip>
+        )}
 
         {user && (
           <HeaderUserProfileButton
@@ -494,16 +688,18 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
+  const isMobilePhone = !screens.md;
   const isCompactMobile = !screens.sm;
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickJumpOpen, setQuickJumpOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
 
-  useSuspendShortcuts(mobileNavOpen || profileMenuOpen);
+  useSuspendShortcuts(mobileNavOpen || mobileAccountOpen || profileMenuOpen);
 
   const isOperationsRoute = location.pathname.startsWith('/operacao');
 
@@ -747,6 +943,7 @@ export default function AppLayout() {
         {/* Barra Superior de Linha Única: [Trilha de Escopo] ── [Status Pill | ⌘K | Perfil] */}
         <AppTopHeader
           isMobile={isMobile}
+          isMobilePhone={isMobilePhone}
           isCompactMobile={isCompactMobile}
           isOperationsRoute={isOperationsRoute}
           nonOperationTitle={nonOperationTitle}
@@ -763,7 +960,11 @@ export default function AppLayout() {
 
         <Content
           style={{
-            padding: isMobile ? '16px 12px 24px' : '24px 28px 32px',
+            padding: isMobilePhone
+              ? '18px 18px 96px'
+              : isMobile
+                ? '16px 12px 24px'
+                : '24px 28px 32px',
             background: 'var(--ps-bg)',
             flex: 1,
             minWidth: 0,
@@ -773,6 +974,37 @@ export default function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {isMobilePhone && (
+        <>
+          <MobileBottomTabBar
+            selectedKey={selectedKey}
+            activeAlertCount={activeAlertCount}
+            onNavigate={(path) => {
+              void navigate(path);
+            }}
+            onOpenSearch={() => setQuickJumpOpen(true)}
+            onOpenAccount={() => setMobileAccountOpen(true)}
+          />
+          <MobileAccountSheet
+            open={mobileAccountOpen}
+            onClose={() => setMobileAccountOpen(false)}
+            identity={identity}
+            email={user?.email || ''}
+            canWriteOperations={canWriteOperations}
+            isDark={isDark}
+            onNavigateAdmin={() => {
+              void navigate('/admin');
+            }}
+            onOpenProfile={() => setProfileOpen(true)}
+            onToggleTheme={toggleTheme}
+            onOpenSupport={() => setSupportOpen(true)}
+            onLogout={() => {
+              void handleLogout();
+            }}
+          />
+        </>
+      )}
 
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
       <SupportContactModal open={supportOpen} onClose={() => setSupportOpen(false)} />

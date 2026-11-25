@@ -12,7 +12,7 @@ import {
   ToolOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import { Button, Col, Row, Space, Tooltip } from 'antd';
+import { Button, Col, Grid, Row, Space, Tooltip } from 'antd';
 import { AccentCard, PageHeader, StatusPill, SubsystemStack } from '../../../components/ui';
 import { SEMANTIC_HEX } from '../../../theme/tokens';
 import type {
@@ -89,6 +89,8 @@ function computeTempDeviationBadge(
   }
   return null;
 }
+
+const { useBreakpoint } = Grid;
 
 const LABEL_STYLE: CSSProperties = {
   fontSize: 12,
@@ -536,6 +538,227 @@ function HeroMaintenanceCard({
   );
 }
 
+interface MobileEquipmentHeroProps {
+  equipment: HeroEquipment;
+  effectiveStatus: EquipmentStatus;
+  liveTemp: number | null | undefined;
+  livePress: number | null | undefined;
+  liveDoor: DoorRawState;
+  liveCompressor: BinaryRawState;
+  liveFan: BinaryRawState;
+  liveLastUpdate: string | null | undefined;
+  targetMetaLabel: string | null | undefined;
+  tempDeviationLabel: string | null;
+  siblingIndex: number;
+  siblingCount: number;
+  canWriteOperations: boolean;
+  backLabel: string | null;
+  onBack: (() => void) | null;
+  onStepSibling?: (delta: number) => void;
+  onOpenManualModal?: () => void;
+  onOpenMaintenanceModal?: () => void;
+  onOpenUnitConfig?: () => void;
+}
+
+function MobileEquipmentStickyBar({
+  siblingIndex,
+  siblingCount,
+  canWriteOperations,
+  onStepSibling,
+  onOpenMaintenanceModal,
+}: {
+  siblingIndex: number;
+  siblingCount: number;
+  canWriteOperations: boolean;
+  onStepSibling?: (delta: number) => void;
+  onOpenMaintenanceModal?: () => void;
+}) {
+  if (siblingCount <= 1 && !canWriteOperations) {
+    return null;
+  }
+  return (
+    <div className="ps-mobile-sticky-bar">
+      {siblingCount > 1 && onStepSibling ? (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Button
+            type="text"
+            icon={<LeftOutlined style={{ fontSize: 12 }} />}
+            onClick={() => onStepSibling(-1)}
+            aria-label="Unidade anterior"
+          />
+          <span
+            className="ps-tabular"
+            style={{ fontSize: 13, fontWeight: 600, color: 'var(--ps-text-secondary)', padding: '0 4px' }}
+          >
+            {siblingIndex + 1} / {siblingCount}
+          </span>
+          <Button
+            type="text"
+            icon={<RightOutlined style={{ fontSize: 12 }} />}
+            onClick={() => onStepSibling(1)}
+            aria-label="Próxima unidade"
+          />
+        </div>
+      ) : (
+        <span />
+      )}
+
+      {canWriteOperations && (
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={onOpenMaintenanceModal}
+          style={{ borderRadius: 999, height: 40, paddingInline: 18, fontWeight: 600 }}
+        >
+          Manutenção
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function MobileEquipmentHero({
+  equipment,
+  effectiveStatus,
+  liveTemp,
+  livePress,
+  liveDoor,
+  liveCompressor,
+  liveFan,
+  liveLastUpdate,
+  targetMetaLabel,
+  tempDeviationLabel,
+  siblingIndex,
+  siblingCount,
+  canWriteOperations,
+  backLabel,
+  onBack,
+  onStepSibling,
+  onOpenManualModal,
+  onOpenMaintenanceModal,
+  onOpenUnitConfig,
+}: MobileEquipmentHeroProps) {
+  const stCfg = EQUIPMENT_STATUS_CONFIG[effectiveStatus] || EQUIPMENT_STATUS_CONFIG.offline;
+  const isOffline = effectiveStatus === 'offline';
+  const doorOpen = liveDoor === 'open';
+  const compOn = liveCompressor === 'on';
+  const fanOn = liveFan === 'on';
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        {onBack ? (
+          <Button
+            type="text"
+            icon={<LeftOutlined />}
+            aria-label={backLabel ? `Voltar para ${backLabel}` : 'Voltar'}
+            onClick={onBack}
+            style={{ marginLeft: -8, flexShrink: 0 }}
+          />
+        ) : (
+          <span style={{ width: 36 }} />
+        )}
+
+        <h1
+          className="ps-mono"
+          style={{
+            margin: 0,
+            fontSize: 18,
+            fontWeight: 800,
+            color: 'var(--ps-text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {equipment.serial}
+        </h1>
+
+        <Button
+          type="text"
+          icon={<SettingOutlined />}
+          aria-label="Configurar Unidade"
+          onClick={onOpenUnitConfig}
+          style={{ flexShrink: 0 }}
+        />
+      </div>
+
+      {/* Borderless Airy Hero directly on canvas (Apple Health style) */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          gap: 10,
+          padding: '8px 0 6px',
+        }}
+      >
+        <StatusPill tone={effectiveStatus} dot pulse={effectiveStatus === 'operational'}>
+          {isOffline
+            ? formatOfflineBadgeLabel(liveLastUpdate)
+            : `${stCfg.label} · ${formatRelativeTimePtBR(liveLastUpdate)}`}
+        </StatusPill>
+
+        <div
+          className="ps-tabular"
+          style={{
+            fontSize: 44,
+            fontWeight: 800,
+            lineHeight: 1.05,
+            letterSpacing: '-0.03em',
+            color: resolveTempColor(effectiveStatus),
+          }}
+        >
+          {formatTemperature(liveTemp)}
+        </div>
+
+        <div className="ps-tabular" style={{ fontSize: 13, color: 'var(--ps-text-secondary)' }}>
+          {targetMetaLabel || 'Sem limite ativo'}
+          {tempDeviationLabel ? ` (${tempDeviationLabel})` : ''} · Pressão{' '}
+          {formatPressure(livePress)}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 8,
+            marginTop: 4,
+          }}
+        >
+          <StatusPill tone={isOffline ? 'offline' : doorOpen ? 'warning' : 'neutral'}>
+            {doorOpen ? 'Porta Aberta' : 'Porta Fechada'}
+          </StatusPill>
+          <StatusPill tone={isOffline ? 'offline' : compOn ? 'operational' : 'neutral'}>
+            {compOn ? 'Comp ON' : 'Comp OFF'}
+          </StatusPill>
+          <StatusPill tone={isOffline ? 'offline' : fanOn ? 'brand' : 'neutral'}>
+            {fanOn ? 'Vent ON' : 'Vent OFF'}
+          </StatusPill>
+        </div>
+      </div>
+
+      {isOffline && (
+        <HeroOfflineBanner
+          canWriteOperations={canWriteOperations}
+          isActive={equipment.is_active}
+          onOpenManualModal={onOpenManualModal}
+        />
+      )}
+
+      <MobileEquipmentStickyBar
+        siblingIndex={siblingIndex}
+        siblingCount={siblingCount}
+        canWriteOperations={canWriteOperations}
+        onStepSibling={onStepSibling}
+        onOpenMaintenanceModal={onOpenMaintenanceModal}
+      />
+    </>
+  );
+}
+
 /**
  * Seção Hero de Nível 3 (Equipamento):
  * - Cabeçalho enxuto em linha única com stepper compacto `‹ 1 / N ›` e engrenagem discreta
@@ -566,12 +789,40 @@ export default function EquipmentHeroSection({
   onOpenMaintenanceModal,
   onOpenUnitConfig,
 }: EquipmentHeroSectionProps) {
+  const screens = useBreakpoint();
+  const isMobilePhone = !screens.md;
   const stCfg = EQUIPMENT_STATUS_CONFIG[effectiveStatus] || EQUIPMENT_STATUS_CONFIG.offline;
   const isOffline = effectiveStatus === 'offline';
   const tempDeviationLabel = computeTempDeviationBadge(liveTemp, tempBounds);
   const maintCountdown = getMaintenanceCountdownInfo(equipment.next_maintenance_date);
   const maintTone = resolveMaintTone(maintCountdown?.tone);
   const showUrgentMaint = maintTone === 'critical' || maintTone === 'warning';
+
+  if (isMobilePhone) {
+    return (
+      <MobileEquipmentHero
+        equipment={equipment}
+        effectiveStatus={effectiveStatus}
+        liveTemp={liveTemp}
+        livePress={livePress}
+        liveDoor={liveDoor}
+        liveCompressor={liveCompressor}
+        liveFan={liveFan}
+        liveLastUpdate={liveLastUpdate}
+        targetMetaLabel={targetMetaLabel}
+        tempDeviationLabel={tempDeviationLabel}
+        siblingIndex={siblingIndex}
+        siblingCount={siblingCount}
+        canWriteOperations={canWriteOperations}
+        backLabel={backLabel}
+        onBack={onBack}
+        onStepSibling={onStepSibling}
+        onOpenManualModal={onOpenManualModal}
+        onOpenMaintenanceModal={onOpenMaintenanceModal}
+        onOpenUnitConfig={onOpenUnitConfig}
+      />
+    );
+  }
 
   return (
     <>

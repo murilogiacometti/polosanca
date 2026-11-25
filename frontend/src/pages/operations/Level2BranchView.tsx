@@ -3,12 +3,14 @@ import {
   AppstoreOutlined,
   ArrowRightOutlined,
   ClockCircleOutlined,
+  LeftOutlined,
   PlusOutlined,
+  SearchOutlined,
   SettingOutlined,
   ToolOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
-import { Button, Card, Empty, Segmented, Space, Table, Tag, Tooltip } from 'antd';
+import { Button, Card, Empty, Grid, Segmented, Space, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import ApiKeyModal, { type ApiKeyModalData } from '../../components/Modals/ApiKeyModal';
 import EquipmentFormModal from '../../components/Modals/EquipmentFormModal';
@@ -37,6 +39,7 @@ import {
 } from '../../utils/formatters';
 
 const DENSITY_STORAGE_KEY = 'ps_branch_density';
+const { useBreakpoint } = Grid;
 
 type BranchViewMode = 'cards' | 'list';
 
@@ -304,6 +307,217 @@ function EquipmentStatusCard({ eq, onZoomEquipment }: EquipmentStatusCardProps) 
         </div>
       )}
     </AccentCard>
+  );
+}
+
+function resolveMobileCardSummary(eq: EquipmentLiveRecord): string {
+  const st: EquipmentStatus = eq.effectiveStatus || 'offline';
+  if (st === 'offline') {
+    return `Sem sinal ${formatCompactAgePtBR(eq.liveLastUpdate)}`;
+  }
+  const parts: string[] = [];
+  if (eq.liveDoor === 'open') {
+    parts.push('Porta Aberta');
+  } else {
+    parts.push(st === 'critical' ? 'Crítico' : st === 'warning' ? 'Atenção' : 'Normal');
+  }
+  if (eq.liveCompressor === 'on') {
+    parts.push('Comp ON');
+  }
+  return parts.join(' · ');
+}
+
+interface MobileBranchFloorProps {
+  headerTitle: string;
+  backLabel: string | null;
+  onBack: (() => void) | null;
+  canWriteOperations: boolean;
+  filterOptions: Array<FilterChipOption<EquipmentStatus | undefined>>;
+  statusFilter: EquipmentStatus | undefined;
+  onStatusFilterChange: (next: EquipmentStatus | undefined) => void;
+  searchText: string;
+  onSearchTextChange: (next: string) => void;
+  searchOpen: boolean;
+  onToggleSearch: () => void;
+  equipments: EquipmentLiveRecord[];
+  onZoomEquipment: (equipmentId: string) => void;
+  onOpenCreateModal: () => void;
+}
+
+function MobileBranchFloor({
+  headerTitle,
+  backLabel,
+  onBack,
+  canWriteOperations,
+  filterOptions,
+  statusFilter,
+  onStatusFilterChange,
+  searchText,
+  onSearchTextChange,
+  searchOpen,
+  onToggleSearch,
+  equipments,
+  onZoomEquipment,
+  onOpenCreateModal,
+}: MobileBranchFloorProps) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {onBack && (
+            <Button
+              type="text"
+              icon={<LeftOutlined />}
+              aria-label={backLabel ? `Voltar para ${backLabel}` : 'Voltar'}
+              onClick={onBack}
+              style={{ flexShrink: 0, marginLeft: -8 }}
+            />
+          )}
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 800,
+              letterSpacing: '-0.03em',
+              color: 'var(--ps-text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {headerTitle}
+          </h1>
+        </div>
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <Button
+            icon={<SearchOutlined />}
+            aria-label="Buscar equipamento"
+            type={searchOpen || Boolean(searchText) ? 'primary' : 'default'}
+            ghost={searchOpen || Boolean(searchText)}
+            onClick={onToggleSearch}
+            style={{ borderRadius: 10 }}
+          />
+          {canWriteOperations && (
+            <Button
+              icon={<PlusOutlined />}
+              aria-label="Novo Equipamento"
+              onClick={onOpenCreateModal}
+              style={{ borderRadius: 10 }}
+            />
+          )}
+        </div>
+      </div>
+
+      {(searchOpen || Boolean(searchText)) && (
+        <SearchPill
+          value={searchText}
+          onChange={onSearchTextChange}
+          placeholder="Buscar câmara ou serial..."
+          width="100%"
+        />
+      )}
+
+      <FilterChipBar<EquipmentStatus | undefined>
+        options={filterOptions}
+        value={statusFilter}
+        onChange={onStatusFilterChange}
+        hideZero
+        resetValue={undefined}
+      />
+
+      {equipments.length === 0 ? (
+        <Card style={{ borderRadius: 16 }}>
+          <Empty description="Nenhum equipamento corresponde aos filtros nesta unidade." />
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {equipments.map((eq) => {
+            const st: EquipmentStatus = eq.effectiveStatus || 'offline';
+            const tempColor =
+              st === 'critical'
+                ? '#b91c1c'
+                : st === 'warning'
+                  ? '#b45309'
+                  : st === 'offline'
+                    ? 'var(--ps-text-muted)'
+                    : 'var(--ps-text-primary)';
+            return (
+              <AccentCard
+                key={eq.id}
+                status={st}
+                padding="20px"
+                gap={14}
+                ariaLabel={`Abrir equipamento ${eq.serial}`}
+                onClick={() => onZoomEquipment(eq.id)}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="ps-mono"
+                    onClick={() => onZoomEquipment(eq.id)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: 0,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: 'var(--ps-text-primary)',
+                    }}
+                  >
+                    {eq.serial}
+                  </button>
+                  <span
+                    className="ps-tabular"
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
+                      color: tempColor,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {formatTemperature(eq.liveTemperature)}
+                  </span>
+                </div>
+
+                <SparklineMini
+                  points={eq.sparkline24h}
+                  status={st}
+                  threshold={eq.threshold}
+                  showHeader={false}
+                  withTopBorder={false}
+                  height={44}
+                />
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    fontSize: 13,
+                    color: 'var(--ps-text-secondary)',
+                  }}
+                >
+                  <span>{resolveMobileCardSummary(eq)}</span>
+                  <span className="ps-tabular">{formatRelativeTimePtBR(eq.liveLastUpdate)}</span>
+                </div>
+              </AccentCard>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -658,58 +872,83 @@ export default function Level2BranchView({
     [onZoomEquipment]
   );
 
+  const screens = useBreakpoint();
+  const isMobilePhone = !screens.md;
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
   const headerTitle = resolveBranchHeaderTitle(isSingleBranchCompany, company, branch);
 
   return (
-    <Space direction="vertical" size={18} style={{ width: '100%' }}>
-      <PageHeader
-        backLabel={backLabel}
-        onBack={onBack}
-        title={headerTitle}
-        infoTitle="Informações da Unidade"
-        infoContent={
-          <BranchInfoPopover
-            company={company}
-            branch={branch}
-            equipmentCount={equipments.length}
-          />
-        }
-        rightSlot={
-          <BranchHeaderRightSlot
-            showViewSwitcher={showViewSwitcher}
-            effectiveViewMode={effectiveViewMode}
-            onViewModeChange={handleViewModeChange}
-            showCompanyConfig={isSingleBranchCompany && canWriteOperations}
-            onOpenCompanyConfig={onOpenCompanyConfig}
-            canWriteOperations={canWriteOperations}
-            onOpenCreateModal={() => setCreateModalOpen(true)}
-          />
-        }
-      />
-
-      <div className="ps-toolbar-row">
-        <FilterChipBar<EquipmentStatus | undefined>
-          options={filterOptions}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          hideZero
-          resetValue={undefined}
+    <>
+      {isMobilePhone ? (
+        <MobileBranchFloor
+          headerTitle={headerTitle}
+          backLabel={backLabel}
+          onBack={onBack}
+          canWriteOperations={canWriteOperations}
+          filterOptions={filterOptions}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          searchText={searchText}
+          onSearchTextChange={setSearchText}
+          searchOpen={mobileSearchOpen}
+          onToggleSearch={() => setMobileSearchOpen((prev) => !prev)}
+          equipments={filteredEquipments}
+          onZoomEquipment={onZoomEquipment}
+          onOpenCreateModal={() => setCreateModalOpen(true)}
         />
+      ) : (
+        <Space direction="vertical" size={18} style={{ width: '100%' }}>
+          <PageHeader
+            backLabel={backLabel}
+            onBack={onBack}
+            title={headerTitle}
+            infoTitle="Informações da Unidade"
+            infoContent={
+              <BranchInfoPopover
+                company={company}
+                branch={branch}
+                equipmentCount={equipments.length}
+              />
+            }
+            rightSlot={
+              <BranchHeaderRightSlot
+                showViewSwitcher={showViewSwitcher}
+                effectiveViewMode={effectiveViewMode}
+                onViewModeChange={handleViewModeChange}
+                showCompanyConfig={isSingleBranchCompany && canWriteOperations}
+                onOpenCompanyConfig={onOpenCompanyConfig}
+                canWriteOperations={canWriteOperations}
+                onOpenCreateModal={() => setCreateModalOpen(true)}
+              />
+            }
+          />
 
-        <SearchPill
-          value={searchText}
-          onChange={setSearchText}
-          placeholder="Filtrar tag, tipo ou modelo..."
-          width={240}
-        />
-      </div>
+          <div className="ps-toolbar-row">
+            <FilterChipBar<EquipmentStatus | undefined>
+              options={filterOptions}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              hideZero
+              resetValue={undefined}
+            />
 
-      <BranchEquipmentDisplay
-        equipments={filteredEquipments}
-        viewMode={effectiveViewMode}
-        listColumns={listColumns}
-        onZoomEquipment={onZoomEquipment}
-      />
+            <SearchPill
+              value={searchText}
+              onChange={setSearchText}
+              placeholder="Filtrar tag, tipo ou modelo..."
+              width={240}
+            />
+          </div>
+
+          <BranchEquipmentDisplay
+            equipments={filteredEquipments}
+            viewMode={effectiveViewMode}
+            listColumns={listColumns}
+            onZoomEquipment={onZoomEquipment}
+          />
+        </Space>
+      )}
 
       <EquipmentFormModal
         open={createModalOpen}
@@ -737,6 +976,6 @@ export default function Level2BranchView({
         onClose={() => setApiKeyModalData(null)}
         apiKeyData={apiKeyModalData}
       />
-    </Space>
+    </>
   );
 }

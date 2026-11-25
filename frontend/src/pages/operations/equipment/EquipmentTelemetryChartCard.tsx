@@ -1,6 +1,6 @@
-import type { RefObject } from 'react';
-import { ZoomOutOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Empty, Spin } from 'antd';
+import { type RefObject, useState } from 'react';
+import { SlidersOutlined, ZoomOutOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Drawer, Empty, Grid, Segmented, Spin } from 'antd';
 import type { Dayjs } from 'dayjs';
 import DutyCycleSwimlane from '../../../components/Operations/DutyCycleSwimlane';
 import type {
@@ -48,6 +48,7 @@ export interface EquipmentTelemetryChartCardProps {
 const EMPTY_CHART_DATA: ChartTelemetryPoint[] = [];
 const EMPTY_PINS: TimelinePin[] = [];
 const EMPTY_RULES: AlertRule[] = [];
+const { useBreakpoint } = Grid;
 
 function normalizeTelemetryChartProps(
   props: Omit<EquipmentTelemetryChartCardProps, 'containerRef'>
@@ -82,6 +83,9 @@ export default function EquipmentTelemetryChartCard({
   ...props
 }: EquipmentTelemetryChartCardProps) {
   const cfg = normalizeTelemetryChartProps(props);
+  const screens = useBreakpoint();
+  const isMobilePhone = !screens.md;
+  const [optionsDrawerOpen, setOptionsDrawerOpen] = useState(false);
 
   const state = useTelemetryChartState({
     fullChartData: cfg.fullChartData,
@@ -92,50 +96,99 @@ export default function EquipmentTelemetryChartCard({
     onLockedMsChange: props.onLockedMsChange,
   });
 
+  const controlsNode = (
+    <TelemetryChartHeaderControls
+      compare24h={cfg.compare24h}
+      onCompare24hChange={props.onCompare24hChange}
+      showPressureChart={state.showPressureChart}
+      onShowPressureChartChange={state.setShowPressureChart}
+      interval={cfg.interval}
+      onIntervalChange={props.onIntervalChange}
+      timeWindow={cfg.timeWindow}
+      onTimeWindowChange={props.onTimeWindowChange}
+      customRange={props.customRange}
+      onCustomRangeChange={props.onCustomRangeChange}
+      onResetZoom={state.resetZoom}
+      isRawRangeOver90Days={cfg.isRawRangeOver90Days}
+      exportingCsv={cfg.exportingCsv}
+      onExportCsv={props.onExportCsv}
+    />
+  );
+
+  const mobileWindowValue: TelemetryWindowKey =
+    cfg.timeWindow === '6h' || cfg.timeWindow === '24h' || cfg.timeWindow === '7d'
+      ? cfg.timeWindow
+      : '24h';
+
   return (
     <div ref={containerRef}>
       <Card
         title={
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15.5, fontWeight: 700 }}>
-                Telemetria Sincronizada de Causa-Raiz
-              </span>
-              {state.zoomRange && (
+          isMobilePhone ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 16, fontWeight: 700 }}>
+                  Telemetria Sincronizada de Causa-Raiz
+                </span>
                 <Button
-                  size="small"
-                  type="primary"
-                  ghost
-                  icon={<ZoomOutOutlined />}
-                  onClick={state.resetZoom}
-                >
-                  Resetar zoom ({state.chartData.length} leituras)
-                </Button>
-              )}
+                  type="text"
+                  icon={<SlidersOutlined />}
+                  aria-label="Opções de telemetria"
+                  onClick={() => setOptionsDrawerOpen(true)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Segmented<TelemetryWindowKey>
+                  className="ps-pill-switcher"
+                  value={mobileWindowValue}
+                  onChange={(next) => {
+                    state.resetZoom();
+                    props.onTimeWindowChange?.(next);
+                  }}
+                  options={[
+                    { value: '6h', label: '6h' },
+                    { value: '24h', label: '24h' },
+                    { value: '7d', label: '7d' },
+                  ]}
+                />
+                {state.zoomRange && (
+                  <Button
+                    size="small"
+                    type="primary"
+                    ghost
+                    icon={<ZoomOutOutlined />}
+                    onClick={state.resetZoom}
+                  >
+                    Resetar zoom
+                  </Button>
+                )}
+              </div>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--ps-text-secondary)' }}>
-              Passe o cursor para cruzar Temperatura, Pressão e Relés no mesmo eixo temporal · Clique para fixar ou arraste para dar zoom
+          ) : (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15.5, fontWeight: 700 }}>
+                  Telemetria Sincronizada de Causa-Raiz
+                </span>
+                {state.zoomRange && (
+                  <Button
+                    size="small"
+                    type="primary"
+                    ghost
+                    icon={<ZoomOutOutlined />}
+                    onClick={state.resetZoom}
+                  >
+                    Resetar zoom ({state.chartData.length} leituras)
+                  </Button>
+                )}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--ps-text-secondary)' }}>
+                Passe o cursor para cruzar Temperatura, Pressão e Relés no mesmo eixo temporal · Clique para fixar ou arraste para dar zoom
+              </div>
             </div>
-          </div>
+          )
         }
-        extra={
-          <TelemetryChartHeaderControls
-            compare24h={cfg.compare24h}
-            onCompare24hChange={props.onCompare24hChange}
-            showPressureChart={state.showPressureChart}
-            onShowPressureChartChange={state.setShowPressureChart}
-            interval={cfg.interval}
-            onIntervalChange={props.onIntervalChange}
-            timeWindow={cfg.timeWindow}
-            onTimeWindowChange={props.onTimeWindowChange}
-            customRange={props.customRange}
-            onCustomRangeChange={props.onCustomRangeChange}
-            onResetZoom={state.resetZoom}
-            isRawRangeOver90Days={cfg.isRawRangeOver90Days}
-            exportingCsv={cfg.exportingCsv}
-            onExportCsv={props.onExportCsv}
-          />
-        }
+        extra={isMobilePhone ? undefined : controlsNode}
       >
         {cfg.isRawRangeOver90Days && (
           <Alert
@@ -213,6 +266,17 @@ export default function EquipmentTelemetryChartCard({
           </div>
         )}
       </Card>
+
+      <Drawer
+        open={optionsDrawerOpen}
+        onClose={() => setOptionsDrawerOpen(false)}
+        placement="bottom"
+        height="auto"
+        title="Opções de Telemetria"
+        styles={{ body: { padding: '16px 18px 28px' } }}
+      >
+        {controlsNode}
+      </Drawer>
     </div>
   );
 }

@@ -8,9 +8,11 @@ const MIN_INTERACTIVE_TARGET_PX = 24;
 const MIN_PRIMARY_BUTTON_PX = 36;
 
 async function assertMobileLayoutAndA11y(page: Page, screenLabel: string): Promise<void> {
-  // Wait for any finite enter/fade transitions (e.g. .ps-view-enter) to settle so
-  // axe-core measures final settled contrast rather than mid-fade opacity.
+  // Wait for any Ant Design <Spin> overlays and finite enter/fade transitions (e.g. .ps-view-enter)
+  // to settle so axe-core measures final settled contrast rather than mid-fade opacity.
+  await expect(page.locator('.ant-spin-spinning')).toHaveCount(0, { timeout: 5000 });
   await page.evaluate(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const finite = document
       .getAnimations()
       .filter((a) => {
@@ -145,22 +147,22 @@ async function assertMobileLayoutAndA11y(page: Page, screenLabel: string): Promi
   ).toEqual([]);
 }
 
-async function assertMobileHeaderAccessible(page: Page, screenLabel: string): Promise<void> {
-  const menuBtn = page.getByRole('button', { name: 'Abrir navegação' });
-  await expect(menuBtn, `${screenLabel}: hamburger menu button must be visible`).toBeVisible();
+async function assertMobileBottomNavAccessible(page: Page, screenLabel: string): Promise<void> {
+  const nav = page.getByRole('navigation', { name: 'Navegação principal' });
+  await expect(nav, `${screenLabel}: mobile bottom tab bar must be visible`).toBeVisible();
 
-  const box = await menuBtn.boundingBox();
-  expect(box, `${screenLabel}: hamburger menu button must have a bounding box`).not.toBeNull();
+  const tab = nav.getByRole('button', { name: /Operação/i });
+  const box = await tab.boundingBox();
+  expect(box, `${screenLabel}: Operação tab must have a bounding box`).not.toBeNull();
   if (box) {
-    expect(box.x, `${screenLabel}: hamburger menu clipped off left edge`).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width, `${screenLabel}: hamburger menu clipped off right edge`).toBeLessThanOrEqual(390);
-    expect(box.width, `${screenLabel}: hamburger touch target width >= 36px`).toBeGreaterThanOrEqual(36);
-    expect(box.height, `${screenLabel}: hamburger touch target height >= 36px`).toBeGreaterThanOrEqual(36);
+    expect(box.x, `${screenLabel}: bottom tab clipped off left edge`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${screenLabel}: bottom tab clipped off right edge`).toBeLessThanOrEqual(390);
+    expect(box.height, `${screenLabel}: bottom tab touch target height >= 44px`).toBeGreaterThanOrEqual(44);
   }
 }
 
-test.describe('Mobile Layout & WCAG 2.1 AA Accessibility (390×844)', () => {
-  test('Login page passes mobile overflow & WCAG 2.1 AA checks', async ({ page }) => {
+test.describe('Mobile Layout & WCAG 2.2 AA Accessibility (390×844)', () => {
+  test('Login page passes mobile overflow & WCAG 2.2 AA checks', async ({ page }) => {
     await installMockApi(page, { role: 'global_admin' });
     await page.goto('/login');
     await expect(page.getByRole('button', { name: /entrar na plataforma/i })).toBeVisible();
@@ -168,63 +170,63 @@ test.describe('Mobile Layout & WCAG 2.1 AA Accessibility (390×844)', () => {
     await assertMobileLayoutAndA11y(page, 'Login');
   });
 
-  test('Operations hierarchy (Levels 0–3) & Mobile Drawer pass overflow & WCAG 2.1 AA checks', async ({
+  test('Operations hierarchy (Levels 0–3) & Mobile Account Sheet pass overflow & WCAG 2.2 AA checks', async ({
     page,
   }) => {
     await installMockApi(page, { role: 'global_admin' });
     await loginViaUi(page, 'admin@polosanca.com');
 
-    // Level 0 — Global
+    // Level 0 — Global (v2 Airy Home with ATENÇÃO IMEDIATA + inset-grouped list)
     await expect(page.getByRole('heading', { name: 'Empresas Monitoradas' })).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Level 0 Global');
+    await assertMobileBottomNavAccessible(page, 'Level 0 Global');
     await assertMobileLayoutAndA11y(page, 'Level 0 Global');
 
     // Level 1 — Company
-    await page.getByText('Supermercados São Carlos').click();
+    await page.getByRole('button', { name: /Supermercados São Carlos/i }).click();
     await expect(page).toHaveURL(new RegExp(`/operacao/empresas/${MOCK_IDS.companyA}$`));
     await expect(page.getByText('Filial Centro')).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Level 1 Company');
+    await assertMobileBottomNavAccessible(page, 'Level 1 Company');
     await assertMobileLayoutAndA11y(page, 'Level 1 Company');
 
-    // Level 2 — Branch
+    // Level 2 — Branch (v2 Airy Branch Floor)
     await page.getByText('Filial Centro').click();
     await expect(page).toHaveURL(
       new RegExp(`/operacao/empresas/${MOCK_IDS.companyA}/filiais/${MOCK_IDS.branchCentro}`)
     );
     await expect(page.getByText('CAM-CENTRO-002')).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Level 2 Branch');
+    await assertMobileBottomNavAccessible(page, 'Level 2 Branch');
     await assertMobileLayoutAndA11y(page, 'Level 2 Branch');
 
-    // Level 3 — Equipment
+    // Level 3 — Equipment (v2 Borderless Hero + Serene Chart + Sticky Action Bar)
     await page.getByText('CAM-CENTRO-002').click();
     await expect(page).toHaveURL(new RegExp(`/equipamentos/${MOCK_IDS.eqCam002}$`));
     await expect(page.getByText('Telemetria Sincronizada de Causa-Raiz')).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Level 3 Equipment');
     await assertMobileLayoutAndA11y(page, 'Level 3 Equipment');
 
-    // Mobile Navigation Drawer
-    await page.getByRole('button', { name: 'Abrir navegação' }).click();
-    await expect(page.getByRole('menuitem', { name: /Alertas/i })).toBeVisible();
-    await assertMobileLayoutAndA11y(page, 'Mobile Navigation Drawer');
+    // Mobile Account Sheet from Bottom Tab Bar (navigate back to Level 0 first where tab bar is uncovered)
+    await page.goto('/operacao');
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Conta' }).click();
+    await expect(page.getByRole('button', { name: /Administração & Usuários/i })).toBeVisible();
+    await assertMobileLayoutAndA11y(page, 'Mobile Account Sheet');
     await page.keyboard.press('Escape');
   });
 
-  test('Alerts Center & Admin Users pass mobile overflow & WCAG 2.1 AA checks', async ({
+  test('Alerts Center & Admin Users pass mobile overflow & WCAG 2.2 AA checks', async ({
     page,
   }) => {
     await installMockApi(page, { role: 'global_admin' });
     await loginViaUi(page, 'admin@polosanca.com');
 
-    // Alerts Center
+    // Alerts Center (v2 Airy Triage Card Feed)
     await page.goto('/alerts');
     await expect(page.getByRole('heading', { name: 'Central de Alertas' })).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Alerts Center');
+    await assertMobileBottomNavAccessible(page, 'Alerts Center');
     await assertMobileLayoutAndA11y(page, 'Alerts Center');
 
     // Admin Users
     await page.goto('/admin');
     await expect(page.getByRole('heading', { name: 'Usuários e Permissões' })).toBeVisible();
-    await assertMobileHeaderAccessible(page, 'Admin Users');
+    await assertMobileBottomNavAccessible(page, 'Admin Users');
     await assertMobileLayoutAndA11y(page, 'Admin Users');
   });
 });
